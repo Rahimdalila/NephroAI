@@ -1655,7 +1655,10 @@ function setLang(lang) {
 // ════════════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════════════
-const FLASK  = 'http://127.0.0.1:5000';
+// Auto-detect: localhost → Flask dev server | production → same origin
+const FLASK = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://127.0.0.1:5000'
+  : window.location.origin;
 const TK_KEY = 'nephroai_token_v2';
 const DB_KEY = 'nephroai_patients_v2';
 
