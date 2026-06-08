@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>NephroAI — Aide à la décision médicale</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -353,6 +354,33 @@ tr:hover td{background:var(--surface-2)}
 .score-chip.final .sc-val{color:var(--rose)}
 .score-chip.final.low .sc-val{color:var(--emerald)}
 .score-chip.final.medium .sc-val{color:var(--amber)}
+
+/* ─── HIST TABS ────────────────────────── */
+.hist-tab{
+  background:transparent;border:none;padding:.7rem 1.25rem;
+  font-size:.84rem;font-weight:600;font-family:inherit;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;
+  margin-bottom:-2px;transition:.15s;
+}
+.hist-tab:hover{color:var(--text)}
+.hist-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* ─── SUBSCRIPTION TABLE ──────────────── */
+.sub-row{display:flex;align-items:center;gap:1rem;padding:.875rem 1.25rem;border-bottom:1px solid var(--border);transition:.12s}
+.sub-row:last-child{border-bottom:none}
+.sub-row:hover{background:var(--surface-2)}
+.sub-plan-badge{padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.sub-plan-badge.free{background:#E0F2FE;color:#0369A1}
+.sub-plan-badge.professional{background:#EDE9FE;color:#6D28D9}
+.sub-plan-badge.clinic{background:#FEF3C7;color:#92400E}
+.sub-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sub-status-dot.active{background:var(--emerald)}
+.sub-status-dot.cancelled,.sub-status-dot.expired{background:var(--rose)}
+
+/* ─── CHARTS RESPONSIVE ───────────────── */
+@media(max-width:900px){
+  #chartsRow{grid-template-columns:1fr!important}
+}
 
 /* CKD stage pill */
 .ckd-pill{
@@ -706,19 +734,75 @@ tr:hover td{background:var(--surface-2)}
         </div>
         <button class="btn-primary" style="width:auto;padding:9px 18px" onclick="showPage('analyse')" data-i18n="hist.new_analysis">+ Nouvelle analyse</button>
       </div>
+
+      <!-- ── KPI tiles ── -->
       <div class="stats-row" id="statsRow">
         <div class="stat-tile total"><div class="num" id="stTotal">—</div><div class="lbl" data-i18n="stats.total">Total patients</div></div>
         <div class="stat-tile high"><div class="num" id="stHigh">—</div><div class="lbl" data-i18n="stats.high">Risque élevé</div></div>
         <div class="stat-tile medium"><div class="num" id="stMedium">—</div><div class="lbl" data-i18n="stats.medium">Risque modéré</div></div>
         <div class="stat-tile low"><div class="num" id="stLow">—</div><div class="lbl" data-i18n="stats.low">Risque faible</div></div>
       </div>
-      <div class="hist-card">
-        <div class="hist-toolbar">
-          <h3 data-i18n="hist.records">Dossiers patients</h3>
-          <input type="text" class="search-input" id="searchInput" data-i18n-placeholder="hist.search" placeholder="Rechercher un patient…" oninput="filterTable()"/>
+
+      <!-- ── Charts row ── -->
+      <div id="chartsRow" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <!-- Donut -->
+        <div class="hist-card" style="padding:1.25rem">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem">Répartition des risques</div>
+          <div style="position:relative;height:180px;display:flex;align-items:center;justify-content:center">
+            <canvas id="chartDonut"></canvas>
+            <div id="donutCenter" style="position:absolute;text-align:center;pointer-events:none">
+              <div id="donutTotal" style="font-size:1.6rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text)">—</div>
+              <div style="font-size:.68rem;color:var(--muted)">patients</div>
+            </div>
+          </div>
+          <div id="donutLegend" style="display:flex;justify-content:center;gap:.75rem;margin-top:.75rem;flex-wrap:wrap;font-size:.74rem"></div>
         </div>
-        <div id="tableWrap"></div>
+
+        <!-- Bar chart -->
+        <div class="hist-card" style="padding:1.25rem">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem">Risques par mois</div>
+          <div style="height:180px">
+            <canvas id="chartBar"></canvas>
+          </div>
+        </div>
+
+        <!-- Trend line -->
+        <div class="hist-card" style="padding:1.25rem">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem">Score moyen (tendance)</div>
+          <div style="height:180px">
+            <canvas id="chartLine"></canvas>
+          </div>
+        </div>
       </div>
+
+      <!-- ── Tabs: Patients / Abonnements ── -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1rem">
+        <button id="tabPatients" class="hist-tab active" onclick="switchHistTab('patients')">🗂 Dossiers patients</button>
+        <button class="hist-tab" onclick="switchHistTab('abonnements')" id="tabAbonnements" style="display:none">💳 Abonnements</button>
+      </div>
+
+      <!-- Patients table -->
+      <div id="panelPatients">
+        <div class="hist-card">
+          <div class="hist-toolbar">
+            <h3 data-i18n="hist.records">Dossiers patients</h3>
+            <input type="text" class="search-input" id="searchInput" data-i18n-placeholder="hist.search" placeholder="Rechercher un patient…" oninput="filterTable()"/>
+          </div>
+          <div id="tableWrap"></div>
+        </div>
+      </div>
+
+      <!-- Abonnements table -->
+      <div id="panelAbonnements" style="display:none">
+        <div class="hist-card">
+          <div class="hist-toolbar">
+            <h3>💳 Abonnements actifs</h3>
+            <span id="subCount" style="font-size:.8rem;color:var(--muted)"></span>
+          </div>
+          <div id="subscriptionsWrap"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -776,6 +860,7 @@ tr:hover td{background:var(--surface-2)}
   </div>
 
 </div>
+<script>
 // ════════════════════════════════════════════════════════
 //  INTERNATIONALISATION — FR / EN / AR
 // ════════════════════════════════════════════════════════
@@ -881,6 +966,20 @@ const TRANSLATIONS = {
     "nav.new_analysis": "Nouvelle analyse",
     "nav.myresults":    "Mes résultats",
     "nav.pricing":      "Tarifs",
+    "nav.subscriptions": "Abonnements",
+    "sub.plan_free":     "Gratuit",
+    "sub.plan_pro":      "Professionnel",
+    "sub.plan_clinic":   "Clinique",
+    "sub.col_name":      "Abonné",
+    "sub.col_plan":      "Plan",
+    "sub.col_contact":   "Contact",
+    "sub.col_location":  "Wilaya / Structure",
+    "sub.col_date":      "Date",
+    "sub.col_expires":   "Expiration",
+    "sub.col_status":    "Statut",
+    "sub.active":        "Actif",
+    "sub.expired":       "Expiré",
+    "sub.none":          "Aucun abonnement enregistré.",
     "factor.creatinine":"Créatinine",
     "factor.egfr":      "DFGe (CKD-EPI)",
     "factor.bp":        "Pression art.",
@@ -1009,6 +1108,20 @@ const TRANSLATIONS = {
     "nav.new_analysis": "New analysis",
     "nav.myresults":    "My results",
     "nav.pricing":      "Pricing",
+    "nav.subscriptions": "Subscriptions",
+    "sub.plan_free":     "Free",
+    "sub.plan_pro":      "Professional",
+    "sub.plan_clinic":   "Clinic",
+    "sub.col_name":      "Subscriber",
+    "sub.col_plan":      "Plan",
+    "sub.col_contact":   "Contact",
+    "sub.col_location":  "Wilaya / Structure",
+    "sub.col_date":      "Date",
+    "sub.col_expires":   "Expires",
+    "sub.col_status":    "Status",
+    "sub.active":        "Active",
+    "sub.expired":       "Expired",
+    "sub.none":          "No subscriptions registered.",
     "factor.egfr":      "eGFR (CKD-EPI)",
     "factor.bp":        "Blood pressure",
     "factor.hemoglobin":"Hemoglobin",
@@ -1136,6 +1249,20 @@ const TRANSLATIONS = {
     "nav.new_analysis": "تحليل جديد",
     "nav.myresults":    "نتائجي",
     "nav.pricing":      "الأسعار",
+    "nav.subscriptions": "الاشتراكات",
+    "sub.plan_free":     "مجاني",
+    "sub.plan_pro":      "احترافي",
+    "sub.plan_clinic":   "عيادة",
+    "sub.col_name":      "المشترك",
+    "sub.col_plan":      "الخطة",
+    "sub.col_contact":   "التواصل",
+    "sub.col_location":  "الولاية / الهيكل",
+    "sub.col_date":      "التاريخ",
+    "sub.col_expires":   "الانتهاء",
+    "sub.col_status":    "الحالة",
+    "sub.active":        "نشط",
+    "sub.expired":       "منتهي",
+    "sub.none":          "لا توجد اشتراكات مسجلة.",
     "factor.creatinine":"الكرياتينين",
     "factor.egfr":      "معدل الترشيح",
     "factor.bp":        "ضغط الدم",
@@ -1324,12 +1451,33 @@ function enterApp() {
   else showPage('analyse');
 }
 
+// Super-admins who can see subscriptions
+const ADMIN_USERS = ['docteur_homme', 'docteur_femme'];
+
 function buildNav() {
-  const nav=document.getElementById('topbarNav');
-  const items=currentUser.role==='medecin'
-    ?[{id:'analyse',key:'nav.analyse'},{id:'historique',key:'nav.history'},{id:'comptes',key:'nav.accounts'},{id:'tarifs',key:'nav.pricing'}]
-    :[{id:'analyse',key:'nav.new_analysis'},{id:'mesresultats',key:'nav.myresults'},{id:'tarifs',key:'nav.pricing'}];
-  nav.innerHTML=items.map(i=>`<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}" onclick="showPage('${i.id}')">${t(i.key)}</button>`).join('');
+  const nav = document.getElementById('topbarNav');
+  let items;
+  if (currentUser.role === 'medecin') {
+    items = [
+      {id:'analyse',    key:'nav.analyse'},
+      {id:'historique', key:'nav.history'},
+      {id:'comptes',    key:'nav.accounts'},
+      {id:'tarifs',     key:'nav.pricing'},
+    ];
+    // Abonnements tab visible only to Karim & Sara
+    if (ADMIN_USERS.includes(currentUser.username)) {
+      // Shown inside historique as a tab, no separate nav item needed
+    }
+  } else {
+    items = [
+      {id:'analyse',      key:'nav.new_analysis'},
+      {id:'mesresultats', key:'nav.myresults'},
+      {id:'tarifs',       key:'nav.pricing'},
+    ];
+  }
+  nav.innerHTML = items.map(i =>
+    `<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}" onclick="showPage('${i.id}')">${t(i.key)}</button>`
+  ).join('');
 }
 
 function showPage(id) {
@@ -1604,6 +1752,9 @@ async function runPrediction() {
     username:currentUser.username});
 
   renderResult(result, payload);
+
+  // Live-refresh dashboard KPIs & charts if it was visible
+  setTimeout(refreshDashboard, 300);
 }
 
 function renderResult(res, payload) {
@@ -1690,30 +1841,335 @@ function renderResult(res, payload) {
 // ════════════════════════════════════════════════════════
 //  HISTORIQUE
 // ════════════════════════════════════════════════════════
+// ── Chart instances (kept for update) ──
+let _chartDonut = null;
+let _chartBar   = null;
+let _chartLine  = null;
+
+// ── Current hist tab ──
+let _histTab = 'patients';
+
+function switchHistTab(tab) {
+  _histTab = tab;
+  document.getElementById('panelPatients').style.display     = tab === 'patients'     ? '' : 'none';
+  document.getElementById('panelAbonnements').style.display  = tab === 'abonnements'  ? '' : 'none';
+  document.getElementById('tabPatients').classList.toggle('active',    tab === 'patients');
+  document.getElementById('tabAbonnements').classList.toggle('active', tab === 'abonnements');
+  if (tab === 'abonnements') loadSubscriptions();
+}
+
 async function loadHistorique() {
-  let patients=[]; let stats={total:0,high:0,medium:0,low:0};
+  let patients = [];
+  let stats    = {total:0, high:0, medium:0, low:0};
+
+  // Show abonnements tab only for admins
+  const subTab = document.getElementById('tabAbonnements');
+  if (subTab) subTab.style.display = ADMIN_USERS.includes(currentUser && currentUser.username) ? '' : 'none';
+
   try {
-    const [sr,pr]=await Promise.all([afetch(`${FLASK}/stats`),afetch(`${FLASK}/patients`)]);
-    if(sr.ok){ const d=await sr.json(); if(d.success) stats=d; }
-    if(pr.ok){ const d=await pr.json(); if(d.success&&d.patients.length) patients=d.patients; }
+    const [sr, pr] = await Promise.all([
+      afetch(`${FLASK}/stats`),
+      afetch(`${FLASK}/patients`)
+    ]);
+    if (sr.ok) { const d = await sr.json(); if (d.success) stats = d; }
+    if (pr.ok) { const d = await pr.json(); if (d.success && d.patients.length) patients = d.patients; }
   } catch {}
-  if(!patients.length) patients=localLoad();
-  if(!stats.total)     stats=localStats();
-  allPatients=patients;
+
+  if (!patients.length) patients = localLoad();
+  if (!stats.total)     stats    = localStats();
+
+  allPatients = patients;
   updateStats(stats);
   renderTable(patients);
+  renderCharts(stats, patients);
 }
 
 function updateStats(s) {
-  document.getElementById('stTotal').textContent =s.total;
-  document.getElementById('stHigh').textContent  =s.high;
-  document.getElementById('stMedium').textContent=s.medium;
-  document.getElementById('stLow').textContent   =s.low;
+  document.getElementById('stTotal').textContent  = s.total  || 0;
+  document.getElementById('stHigh').textContent   = s.high   || 0;
+  document.getElementById('stMedium').textContent = s.medium || 0;
+  document.getElementById('stLow').textContent    = s.low    || 0;
+}
+
+// ── Called after each prediction to refresh dashboard live ──
+async function refreshDashboard() {
+  if (document.getElementById('page-historique').classList.contains('active')) {
+    await loadHistorique();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CHARTS
+// ═══════════════════════════════════════════════════════
+function renderCharts(stats, patients) {
+  renderDonut(stats);
+  renderBar(patients);
+  renderLine(patients);
+}
+
+// ── Donut / Pie ──
+function renderDonut(stats) {
+  const h = stats.high   || 0;
+  const m = stats.medium || 0;
+  const l = stats.low    || 0;
+  const total = h + m + l;
+
+  // Center label
+  const el = document.getElementById('donutTotal');
+  if (el) el.textContent = total;
+
+  // Legend
+  const leg = document.getElementById('donutLegend');
+  if (leg) {
+    const pct = v => total ? Math.round(v / total * 100) : 0;
+    leg.innerHTML = [
+      {label:'Élevé', val:h, color:'#F43F5E'},
+      {label:'Modéré',val:m, color:'#F59E0B'},
+      {label:'Faible', val:l, color:'#10B981'},
+    ].map(x => `<div style="display:flex;align-items:center;gap:4px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${x.color};flex-shrink:0;display:inline-block"></span>
+      <span style="color:var(--muted)">${x.label} <strong style="color:var(--text)">${x.val}</strong> <span style="color:var(--light)">(${pct(x.val)}%)</span></span>
+    </div>`).join('');
+  }
+
+  const ctx = document.getElementById('chartDonut');
+  if (!ctx) return;
+  const data = [h, m, l];
+  const colors = ['#F43F5E','#F59E0B','#10B981'];
+
+  if (_chartDonut) {
+    _chartDonut.data.datasets[0].data = data;
+    _chartDonut.update('none');
+    return;
+  }
+  _chartDonut = new Chart(ctx.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Risque Élevé','Risque Modéré','Risque Faible'],
+      datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 4 }]
+    },
+    options: {
+      cutout: '68%',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const total2 = ctx.dataset.data.reduce((a,b) => a+b, 0);
+              const pct = total2 ? Math.round(ctx.parsed / total2 * 100) : 0;
+              return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Bar: risk per month ──
+function renderBar(patients) {
+  const ctx = document.getElementById('chartBar');
+  if (!ctx) return;
+
+  // Group by YYYY-MM
+  const byMonth = {};
+  (patients || []).forEach(p => {
+    const date = (p.predicted_at || p.date || '').toString().slice(0, 7);
+    if (!date) return;
+    if (!byMonth[date]) byMonth[date] = {high:0, medium:0, low:0};
+    const rl = p.risk_level || p.risk || 'low';
+    if (byMonth[date][rl] !== undefined) byMonth[date][rl]++;
+  });
+
+  const months = Object.keys(byMonth).sort().slice(-6); // last 6 months
+  const labels = months.map(m => {
+    const [y, mo] = m.split('-');
+    return new Date(+y, +mo-1).toLocaleDateString(currentLang === 'ar' ? 'ar-DZ' : 'fr-FR', {month:'short', year:'2-digit'});
+  });
+
+  const dHigh   = months.map(m => byMonth[m].high);
+  const dMedium = months.map(m => byMonth[m].medium);
+  const dLow    = months.map(m => byMonth[m].low);
+
+  // If no real data, show placeholder
+  if (!months.length) {
+    if (_chartBar) { _chartBar.data.labels = ['—']; _chartBar.data.datasets.forEach(d=>d.data=[0]); _chartBar.update('none'); return; }
+  }
+
+  if (_chartBar) {
+    _chartBar.data.labels = labels;
+    _chartBar.data.datasets[0].data = dHigh;
+    _chartBar.data.datasets[1].data = dMedium;
+    _chartBar.data.datasets[2].data = dLow;
+    _chartBar.update('none');
+    return;
+  }
+  _chartBar = new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {label:'Élevé',  data:dHigh,   backgroundColor:'rgba(244,63,94,.75)',  borderRadius:4, stack:'s'},
+        {label:'Modéré', data:dMedium, backgroundColor:'rgba(245,158,11,.75)', borderRadius:4, stack:'s'},
+        {label:'Faible', data:dLow,    backgroundColor:'rgba(16,185,129,.75)', borderRadius:4, stack:'s'},
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{ boxWidth:10, font:{size:11} } } },
+      scales: {
+        x: { stacked:true, grid:{display:false}, ticks:{font:{size:11}} },
+        y: { stacked:true, beginAtZero:true, ticks:{stepSize:1, font:{size:11}}, grid:{color:'rgba(0,0,0,.05)'} }
+      }
+    }
+  });
+}
+
+// ── Line: average score trend ──
+function renderLine(patients) {
+  const ctx = document.getElementById('chartLine');
+  if (!ctx) return;
+
+  // Build time series: one point per prediction, sorted by date
+  const pts = (patients || [])
+    .filter(p => p.percentage != null && (p.predicted_at || p.date))
+    .map(p => ({
+      date: (p.predicted_at || p.date || '').toString().slice(0, 10),
+      val:  typeof p.percentage === 'number' ? p.percentage : parseFloat(p.percentage) || 0
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group by date → average
+  const byDate = {};
+  pts.forEach(p => {
+    if (!byDate[p.date]) byDate[p.date] = [];
+    byDate[p.date].push(p.val);
+  });
+  const dates  = Object.keys(byDate).sort().slice(-14);
+  const labels = dates.map(d => d.slice(5));  // MM-DD
+  const values = dates.map(d => {
+    const arr = byDate[d];
+    return +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+  });
+
+  if (_chartLine) {
+    _chartLine.data.labels  = labels.length ? labels : ['—'];
+    _chartLine.data.datasets[0].data = values.length ? values : [0];
+    _chartLine.update('none');
+    return;
+  }
+  _chartLine = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Score moyen (%)',
+        data: values,
+        borderColor: '#2563EB',
+        backgroundColor: 'rgba(37,99,235,.08)',
+        tension: 0.35,
+        fill: true,
+        pointRadius: 3,
+        pointBackgroundColor: '#2563EB',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid:{display:false}, ticks:{font:{size:10}, maxRotation:45} },
+        y: { min:0, max:100, ticks:{font:{size:11}, callback: v => v+'%'}, grid:{color:'rgba(0,0,0,.05)'} }
+      }
+    }
+  });
 }
 
 function riskBadge(rl) {
   const label={low:t('badge.low'),medium:t('badge.medium'),high:t('badge.high')}[rl]||'—';
   return `<span class="badge ${rl||'low'}">${label}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ABONNEMENTS (admin only: Karim & Sara)
+// ═══════════════════════════════════════════════════════
+async function loadSubscriptions() {
+  const wrap = document.getElementById('subscriptionsWrap');
+  if (!wrap) return;
+  if (!ADMIN_USERS.includes(currentUser && currentUser.username)) {
+    wrap.innerHTML = '<div class="empty-state"><p>⛔ Accès réservé aux administrateurs.</p></div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="empty-state"><p>${t('common.loading')}</p></div>`;
+  try {
+    const r = await afetch(`${FLASK}/subscriptions`);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    renderSubscriptions(d.subscriptions || []);
+  } catch(e) {
+    wrap.innerHTML = `<div class="empty-state"><p>⚠ ${e.message || 'Erreur serveur'}</p></div>`;
+  }
+}
+
+function renderSubscriptions(subs) {
+  const wrap = document.getElementById('subscriptionsWrap');
+  const countEl = document.getElementById('subCount');
+  if (countEl) countEl.textContent = subs.length + ' abonnement(s)';
+
+  if (!subs.length) {
+    wrap.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><p>${t('sub.none')}</p></div>`;
+    return;
+  }
+
+  const PLAN_LABELS = {free: t('sub.plan_free'), professional: t('sub.plan_pro'), clinic: t('sub.plan_clinic')};
+
+  wrap.innerHTML = `
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>${t('sub.col_name')}</th>
+        <th>${t('sub.col_plan')}</th>
+        <th>${t('sub.col_contact')}</th>
+        <th>${t('sub.col_location')}</th>
+        <th>${t('sub.col_date')}</th>
+        <th>${t('sub.col_expires')}</th>
+        <th>${t('sub.col_status')}</th>
+      </tr></thead>
+      <tbody>
+        ${subs.map(s => {
+          const planCls  = s.plan || 'free';
+          const statusCls = s.status || 'active';
+          const statusLbl = statusCls === 'active' ? t('sub.active') : t('sub.expired');
+          const dateStr  = (s.subscribed_at || '').toString().slice(0,10);
+          const expStr   = s.expires_at ? s.expires_at.toString().slice(0,10) : '—';
+          const location = [s.wilaya, s.structure].filter(Boolean).join(' / ') || '—';
+          return `<tr>
+            <td>
+              <div style="font-weight:600;font-size:.88rem">${s.full_name || '—'}</div>
+            </td>
+            <td><span class="sub-plan-badge ${planCls}">${PLAN_LABELS[s.plan] || s.plan}</span></td>
+            <td>
+              <div style="font-size:.82rem">${s.email || '—'}</div>
+              ${s.phone ? `<div style="font-size:.75rem;color:var(--muted)">${s.phone}</div>` : ''}
+            </td>
+            <td style="font-size:.82rem">${location}</td>
+            <td style="font-size:.82rem;color:var(--muted)">${dateStr}</td>
+            <td style="font-size:.82rem;color:var(--muted)">${expStr}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="sub-status-dot ${statusCls}"></span>
+                <span style="font-size:.78rem;font-weight:600;color:${statusCls==='active'?'var(--emerald)':'var(--rose)'}">${statusLbl}</span>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>`;
 }
 
 function renderTable(rows) {
