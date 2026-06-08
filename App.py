@@ -117,6 +117,21 @@ def init_db():
         probability REAL, percentage REAL, risk_level TEXT,
         esrd_risk_label TEXT, model_used TEXT, predicted_at TEXT)""")
 
+    # ── Subscriptions ────────────────────────────────────────────
+    cur.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id       INTEGER REFERENCES users(id),
+        plan          TEXT    NOT NULL CHECK(plan IN ('free','professional','clinic')),
+        full_name     TEXT    NOT NULL,
+        email         TEXT    NOT NULL,
+        phone         TEXT,
+        structure     TEXT,
+        wilaya        TEXT,
+        status        TEXT    NOT NULL DEFAULT 'active'
+                              CHECK(status IN ('active','cancelled','expired')),
+        subscribed_at TEXT    NOT NULL,
+        expires_at    TEXT)""")
+
     if cur.execute("SELECT COUNT(*) as n FROM users").fetchone()["n"] == 0:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cur.executemany(
@@ -160,24 +175,6 @@ def init_db():
             pass
     conn3.close()
 
-    # ── Subscriptions ────────────────────────────────────────────
-    cur.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id       INTEGER REFERENCES users(id),
-        plan          TEXT    NOT NULL CHECK(plan IN ('free','professional','clinic')),
-        full_name     TEXT    NOT NULL,
-        email         TEXT    NOT NULL,
-        phone         TEXT,
-        structure     TEXT,
-        wilaya        TEXT,
-        status        TEXT    NOT NULL DEFAULT 'active'
-                              CHECK(status IN ('active','cancelled','expired')),
-        subscribed_at TEXT    NOT NULL,
-        expires_at    TEXT)""")
-
-    conn.commit()
-    conn.close()
-
     print(f"[OK] DB prête : {DB_PATH}")
 
 init_db()
@@ -190,7 +187,6 @@ PLANS = {
         "label":    "Gratuit",
         "price":    0,
         "currency": "DA",
-        "period":   "mois",
         "features": [
             "5 prédictions / mois",
             "1 médecin",
@@ -202,7 +198,6 @@ PLANS = {
         "label":    "Professionnel",
         "price":    800,
         "currency": "DA",
-        "period":   "mois",
         "features": [
             "Prédictions illimitées",
             "Jusqu'à 3 médecins",
@@ -215,7 +210,6 @@ PLANS = {
         "label":    "Clinique",
         "price":    2000,
         "currency": "DA",
-        "period":   "mois",
         "features": [
             "Prédictions illimitées",
             "Médecins illimités",
@@ -233,6 +227,7 @@ def get_plans():
 
 @app.route("/subscribe", methods=["POST"])
 def subscribe():
+    from datetime import timedelta
     data      = request.get_json(force=True) or {}
     plan      = data.get("plan", "").strip().lower()
     full_name = data.get("full_name", "").strip()
@@ -248,19 +243,14 @@ def subscribe():
     if not email:
         return jsonify({"success": False, "error": "Email requis"}), 400
 
-    # Optionally link to logged-in user
-    user = get_current_user()
+    user    = get_current_user()
     user_id = user["id"] if user else None
-
-    from datetime import timedelta
-    now        = datetime.now()
-    expires    = (now + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
-    now_str    = now.strftime("%Y-%m-%d %H:%M:%S")
+    now     = datetime.now()
+    expires = (now + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_db()
     cur  = conn.cursor()
-
-    # One active subscription per email per plan
     cur.execute(
         "SELECT id FROM subscriptions WHERE email=? AND plan=? AND status='active'",
         (email, plan)
@@ -276,20 +266,20 @@ def subscribe():
         """INSERT INTO subscriptions
            (user_id, plan, full_name, email, phone, structure, wilaya, status, subscribed_at, expires_at)
            VALUES (?,?,?,?,?,?,?,?,?,?)""",
-        (user_id, plan, full_name, email, phone, structure, wilaya,
-         "active", now_str, expires)
+        (user_id, plan, full_name, email, phone or None, structure or None,
+         wilaya or None, "active", now_str, expires)
     )
     sub_id = cur.lastrowid
     conn.commit()
     conn.close()
 
     return jsonify({
-        "success":      True,
+        "success":         True,
         "subscription_id": sub_id,
-        "plan":         plan,
-        "plan_label":   PLANS[plan]["label"],
-        "expires_at":   expires,
-        "message":      f"Abonnement {PLANS[plan]['label']} activé avec succès !",
+        "plan":            plan,
+        "plan_label":      PLANS[plan]["label"],
+        "expires_at":      expires,
+        "message":         f"Abonnement {PLANS[plan]['label']} activé avec succès !",
     }), 201
 
 @app.route("/subscriptions", methods=["GET"])
@@ -313,10 +303,6 @@ def get_subscription(sub_id):
     if not row:
         return jsonify({"success": False, "error": "Abonnement introuvable"}), 404
     return jsonify({"success": True, "subscription": dict(row)})
-
-# ================================================================
-# AUTH
-# ================================================================
 def get_current_user():
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
