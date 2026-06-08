@@ -303,151 +303,12 @@ tr:hover td{background:var(--surface-2)}
 .empty-state p{font-size:.85rem}
 .warn-banner{display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:.75rem 1rem;font-size:.8rem;color:#92400E;margin-bottom:1rem}
 .warn-banner svg{width:16px;height:16px;flex-shrink:0;stroke:#F59E0B;fill:none;stroke-width:2}
-/* ══════════════════════════════════════════
-   HAMBURGER & MOBILE MENU
-══════════════════════════════════════════ */
-.hamburger-btn{
-  display:none;flex-direction:column;justify-content:center;align-items:center;
-  gap:5px;width:36px;height:36px;background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.12);border-radius:8px;cursor:pointer;
-  padding:0;flex-shrink:0;
-}
-.hamburger-btn span{
-  display:block;width:18px;height:2px;background:#fff;border-radius:2px;
-  transition:.25s;transform-origin:center;
-}
-.hamburger-btn.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
-.hamburger-btn.open span:nth-child(2){opacity:0;transform:scaleX(0)}
-.hamburger-btn.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
-
-.mobile-menu{
-  display:none;position:fixed;top:58px;left:0;right:0;z-index:99;
-  background:var(--navy);border-bottom:1px solid rgba(255,255,255,.1);
-  flex-direction:column;padding:.75rem 1rem 1rem;gap:.25rem;
-  box-shadow:0 12px 32px rgba(0,0,0,.4);
-  transform:translateY(-10px);opacity:0;
-  transition:transform .25s ease,opacity .25s ease;
-  pointer-events:none;
-}
-.mobile-menu.open{
-  display:flex;transform:translateY(0);opacity:1;pointer-events:all;
-}
-#mobileNav{display:flex;flex-direction:column;gap:3px;}
-#mobileNav .tnav{
-  text-align:left;padding:11px 14px;border-radius:9px;
-  font-size:.9rem;width:100%;
-}
-[dir="rtl"] #mobileNav .tnav{text-align:right;}
-.mobile-menu-footer{
-  margin-top:.75rem;padding-top:.75rem;
-  border-top:1px solid rgba(255,255,255,.08);
-  display:flex;align-items:center;justify-content:space-between;gap:.75rem;
-}
-.mobile-lang-row{display:flex;gap:3px;background:rgba(255,255,255,.06);border-radius:8px;padding:3px;}
-.mobile-menu-user{
-  display:flex;align-items:center;gap:8px;
-  padding:.5rem .25rem .75rem;
-  font-size:.83rem;color:rgba(255,255,255,.65);font-weight:600;
-  border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:.5rem;
-}
-.mobile-logout-btn{
-  background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.25);
-  color:#FDA4AF;padding:7px 14px;border-radius:8px;font-size:.8rem;
-  font-family:inherit;cursor:pointer;transition:.15s;
-}
-.mobile-logout-btn:hover{background:rgba(244,63,94,.22);}
-.mobile-menu-backdrop{
-  display:none;position:fixed;inset:0;z-index:98;
-  background:rgba(0,0,0,.45);backdrop-filter:blur(2px);
-}
-.mobile-menu-backdrop.open{display:block;}
-
-/* ══════════════════════════════════════════
-   RESPONSIVE — TABLET (≤900px)
-══════════════════════════════════════════ */
 @media(max-width:900px){
-  /* Nav: hide desktop nav, show hamburger */
-  .topbar-nav{display:none!important}
-  .hamburger-btn{display:flex}
-  /* Hide desktop-only topbar items on small screens */
-  .topbar .lang-switcher{display:none}
-  .topbar .logout-btn{display:none}
-  .topbar .user-chip{display:none}
-
-  /* Layouts */
   .analysis-layout{grid-template-columns:1fr}
   .result-panel{position:static}
   .stats-row{grid-template-columns:1fr 1fr}
   .fgrid,.factor-grid,.detail-grid{grid-template-columns:1fr}
-  #chartsRow{grid-template-columns:1fr!important}
-}
-
-/* ══════════════════════════════════════════
-   RESPONSIVE — MOBILE (≤600px)
-══════════════════════════════════════════ */
-@media(max-width:600px){
-  /* Topbar */
-  .topbar{padding:0 1rem;gap:.6rem}
-  .logo{font-size:.85rem}
-  .logo-icon{width:26px;height:26px}
-
-  /* Inner pages padding */
-  .inner{padding:1.25rem 1rem}
-
-  /* Stats row: 2 cols on mobile */
-  .stats-row{grid-template-columns:1fr 1fr;gap:.6rem}
-  .stat-tile .num{font-size:1.5rem}
-
-  /* Page headers */
-  .page-header{flex-direction:column;align-items:flex-start;gap:.6rem}
-  .page-header h1{font-size:1.1rem}
-
-  /* Form cards */
-  .form-card-header{padding:1rem 1.1rem}
-  .form-card-body{padding:1.1rem}
-
-  /* History toolbar */
-  .hist-toolbar{flex-direction:column;align-items:flex-start;gap:.6rem}
-  .search-input{width:100%!important}
-
-  /* Table: make scrollable */
-  .hist-card{overflow-x:auto}
-  table{min-width:520px}
-
-  /* Modals */
-  .modal{width:calc(100vw - 2rem);max-width:100%;margin:1rem;padding:1.25rem}
-  .modal-head{padding:.9rem 1.1rem}
-
-  /* Result panel */
-  .risk-pct{font-size:2.8rem}
-  .factor-grid{grid-template-columns:1fr 1fr}
-
-  /* Account rows */
-  .acc-row{flex-wrap:wrap}
-  .acc-actions{width:100%;justify-content:flex-end;margin-top:.3rem}
-
-  /* Pricing grid */
-  .pricing-grid{grid-template-columns:1fr!important;gap:14px!important}
-  #pricing-section{padding:40px 16px 60px!important}
-  .pricing-headline{font-size:1.6rem!important}
-  .pricing-proof{gap:20px!important}
-
-  /* Pricing modal */
-  .pricing-modal{padding:24px 16px 20px!important}
-  .pf-row{grid-template-columns:1fr!important}
-
-  /* Charts */
-  #chartsRow{grid-template-columns:1fr!important}
-}
-
-/* ══════════════════════════════════════════
-   RESPONSIVE — SMALL MOBILE (≤400px)
-══════════════════════════════════════════ */
-@media(max-width:400px){
-  .stats-row{grid-template-columns:1fr}
-  .factor-grid{grid-template-columns:1fr}
-  .score-row{flex-direction:column}
-  .score-chip{flex:unset;width:100%}
+  .topbar-nav{display:none}
 }
 
 /* ─── CLINICAL ALERTS & URGENCY ─── */
@@ -516,7 +377,10 @@ tr:hover td{background:var(--surface-2)}
 .sub-status-dot.active{background:var(--emerald)}
 .sub-status-dot.cancelled,.sub-status-dot.expired{background:var(--rose)}
 
-/* ─── CHARTS RESPONSIVE — handled in main @media blocks above ── */
+/* ─── CHARTS RESPONSIVE ───────────────── */
+@media(max-width:900px){
+  #chartsRow{grid-template-columns:1fr!important}
+}
 
 /* CKD stage pill */
 .ckd-pill{
@@ -684,30 +548,8 @@ tr:hover td{background:var(--surface-2)}
         <span id="userChipText">—</span>
       </div>
       <button class="logout-btn" onclick="doLogout()" data-i18n="common.logout">Déconnexion</button>
-      <!-- Hamburger (mobile only) -->
-      <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </div>
-
-  <!-- Mobile slide-down menu -->
-  <div class="mobile-menu" id="mobileMenu">
-    <div class="mobile-menu-user">
-      <div class="user-dot"></div>
-      <span id="mobileUserText">—</span>
-    </div>
-    <nav id="mobileNav"></nav>
-    <div class="mobile-menu-footer">
-      <div class="mobile-lang-row">
-        <button class="lang-btn" onclick="setLang('fr');closeMobileMenu()">FR</button>
-        <button class="lang-btn" onclick="setLang('en');closeMobileMenu()">EN</button>
-        <button class="lang-btn" onclick="setLang('ar');closeMobileMenu()">ع</button>
-      </div>
-      <button class="mobile-logout-btn" onclick="doLogout()" data-i18n="common.logout">Déconnexion</button>
-    </div>
-  </div>
-  <div class="mobile-menu-backdrop" id="mobileBackdrop" onclick="closeMobileMenu()"></div>
 
   <!-- ANALYSE -->
   <div id="page-analyse" class="page active">
@@ -1167,58 +1009,6 @@ const TRANSLATIONS = {
     "common.no_account":"Aucun compte patient. Créez-en un avec le bouton ci-dessus.",
     "common.no_result": "Aucun résultat. Effectuez une analyse.",
     "detail.date_age":  "Âge",
-    "pricing.eyebrow":       "Tarification transparente",
-    "pricing.headline":      "Choisissez le plan",
-    "pricing.headline_em":   "adapté à votre pratique",
-    "pricing.sub":           "De la consultation individuelle à la structure multi-sites, NephroAI s'adapte à chaque niveau d'exercice avec des tarifs pensés pour le contexte algérien.",
-    "pricing.proof_accuracy":"Précision diagnostique",
-    "pricing.proof_doctors": "Médecins actifs",
-    "pricing.proof_preds":   "Prédictions réalisées",
-    "pricing.proof_api":     "Disponibilité API",
-    "plan.free.name":        "Gratuit",
-    "plan.free.tagline":     "Idéal pour explorer NephroAI",
-    "plan.free.btn":         "Commencer gratuitement",
-    "plan.free.f1":          "5 prédictions / mois",
-    "plan.free.f2":          "1 médecin",
-    "plan.free.f3":          "Rapport PDF basique",
-    "plan.free.f4":          "Support communautaire",
-    "plan.pro.name":         "Professionnel",
-    "plan.pro.tagline":      "Pour les praticiens actifs",
-    "plan.pro.badge":        "Le plus populaire",
-    "plan.pro.btn":          "S'abonner — 800 DA/mois",
-    "plan.pro.f1":           "Prédictions illimitées",
-    "plan.pro.f2":           "Jusqu'à 3 médecins",
-    "plan.pro.f3":           "Rapports PDF avancés",
-    "plan.pro.f4":           "Export CSV des données",
-    "plan.pro.f5":           "Support prioritaire",
-    "plan.clinic.name":      "Clinique",
-    "plan.clinic.tagline":   "Pour les structures multi-sites",
-    "plan.clinic.btn":       "S'abonner — 2 000 DA/mois",
-    "plan.clinic.f1":        "Prédictions illimitées",
-    "plan.clinic.f2":        "Médecins illimités",
-    "plan.clinic.f3":        "Tableau de bord multi-sites",
-    "plan.clinic.f4":        "API dédiée",
-    "plan.clinic.f5":        "Intégration HIS / LIS",
-    "plan.clinic.f6":        "Support 24 h / 7 j dédié",
-    "pm.subtitle":           "Remplissez le formulaire — notre équipe vous contacte sous 24 h pour activer votre accès.",
-    "pm.label_name":         "Nom complet *",
-    "pm.label_email":        "Email professionnel *",
-    "pm.label_phone":        "Téléphone",
-    "pm.label_wilaya":       "Wilaya",
-    "pm.label_structure":    "Établissement / Structure",
-    "pm.placeholder_name":   "Dr. Amrani Mohamed",
-    "pm.placeholder_email":  "contact@clinique.dz",
-    "pm.placeholder_phone":  "+213 6xx xxx xxx",
-    "pm.placeholder_wilaya": "Sélectionner…",
-    "pm.placeholder_struct": "CHU Tlemcen, Clinique Al Shifa…",
-    "pm.btn_activate":       "Activer l'abonnement",
-    "pm.processing":         "Traitement en cours…",
-    "pm.activated":          "✓ Abonnement activé",
-    "pm.error_fields":       "⚠ Veuillez renseigner votre nom et votre email.",
-    "pm.error_server":       "❌ Impossible de joindre le serveur. Vérifiez votre connexion.",
-    "pm.title_free":         "Activer votre compte gratuit",
-    "pm.title_plan":         "S'abonner au plan",
-    "pm.period":             "/mois",
   },
   en: {
     "login.sub":        "Clinical Decision Support — Chronic Kidney Disease",
@@ -1360,58 +1150,6 @@ const TRANSLATIONS = {
     "common.no_account":"No patient accounts. Create one with the button above.",
     "common.no_result": "No results. Perform an analysis.",
     "detail.date_age":  "Age",
-    "pricing.eyebrow":       "Transparent pricing",
-    "pricing.headline":      "Choose the plan",
-    "pricing.headline_em":   "suited to your practice",
-    "pricing.sub":           "From solo consultations to multi-site structures, NephroAI adapts to every practice level with pricing designed for the Algerian context.",
-    "pricing.proof_accuracy":"Diagnostic accuracy",
-    "pricing.proof_doctors": "Active physicians",
-    "pricing.proof_preds":   "Predictions made",
-    "pricing.proof_api":     "API uptime",
-    "plan.free.name":        "Free",
-    "plan.free.tagline":     "Ideal for exploring NephroAI",
-    "plan.free.btn":         "Get started for free",
-    "plan.free.f1":          "5 predictions / month",
-    "plan.free.f2":          "1 physician",
-    "plan.free.f3":          "Basic PDF report",
-    "plan.free.f4":          "Community support",
-    "plan.pro.name":         "Professional",
-    "plan.pro.tagline":      "For active practitioners",
-    "plan.pro.badge":        "Most popular",
-    "plan.pro.btn":          "Subscribe — 800 DA/month",
-    "plan.pro.f1":           "Unlimited predictions",
-    "plan.pro.f2":           "Up to 3 physicians",
-    "plan.pro.f3":           "Advanced PDF reports",
-    "plan.pro.f4":           "CSV data export",
-    "plan.pro.f5":           "Priority support",
-    "plan.clinic.name":      "Clinic",
-    "plan.clinic.tagline":   "For multi-site structures",
-    "plan.clinic.btn":       "Subscribe — 2 000 DA/month",
-    "plan.clinic.f1":        "Unlimited predictions",
-    "plan.clinic.f2":        "Unlimited physicians",
-    "plan.clinic.f3":        "Multi-site dashboard",
-    "plan.clinic.f4":        "Dedicated API",
-    "plan.clinic.f5":        "HIS / LIS integration",
-    "plan.clinic.f6":        "Dedicated 24/7 support",
-    "pm.subtitle":           "Fill in the form — our team will contact you within 24 h to activate your access.",
-    "pm.label_name":         "Full name *",
-    "pm.label_email":        "Professional email *",
-    "pm.label_phone":        "Phone",
-    "pm.label_wilaya":       "Wilaya",
-    "pm.label_structure":    "Institution / Structure",
-    "pm.placeholder_name":   "Dr. Amrani Mohamed",
-    "pm.placeholder_email":  "contact@clinic.dz",
-    "pm.placeholder_phone":  "+213 6xx xxx xxx",
-    "pm.placeholder_wilaya": "Select…",
-    "pm.placeholder_struct": "CHU Tlemcen, Al Shifa Clinic…",
-    "pm.btn_activate":       "Activate subscription",
-    "pm.processing":         "Processing…",
-    "pm.activated":          "✓ Subscription activated",
-    "pm.error_fields":       "⚠ Please enter your name and email.",
-    "pm.error_server":       "❌ Cannot reach the server. Check your connection.",
-    "pm.title_free":         "Activate your free account",
-    "pm.title_plan":         "Subscribe to plan",
-    "pm.period":             "/month",
   },
   ar: {
     "login.sub":        "دعم القرار السريري — مرض الكلى المزمن",
@@ -1554,59 +1292,8 @@ const TRANSLATIONS = {
     "common.no_account":"لا توجد حسابات مرضى. أنشئ واحدًا بالزر أعلاه.",
     "common.no_result": "لا توجد نتائج. قم بإجراء تحليل.",
     "detail.date_age":  "العمر",
-    "pricing.eyebrow":       "تسعير شفاف",
-    "pricing.headline":      "اختر الخطة",
-    "pricing.headline_em":   "المناسبة لممارستك",
-    "pricing.sub":           "من الاستشارة الفردية إلى الهياكل متعددة المواقع، يتكيف NephroAI مع كل مستوى من مستويات الممارسة بأسعار مصممة للسياق الجزائري.",
-    "pricing.proof_accuracy":"دقة التشخيص",
-    "pricing.proof_doctors": "الأطباء النشطون",
-    "pricing.proof_preds":   "التنبؤات المنجزة",
-    "pricing.proof_api":     "توفر الواجهة",
-    "plan.free.name":        "مجاني",
-    "plan.free.tagline":     "مثالي لاستكشاف NephroAI",
-    "plan.free.btn":         "ابدأ مجاناً",
-    "plan.free.f1":          "5 تنبؤات / شهر",
-    "plan.free.f2":          "طبيب واحد",
-    "plan.free.f3":          "تقرير PDF أساسي",
-    "plan.free.f4":          "دعم المجتمع",
-    "plan.pro.name":         "احترافي",
-    "plan.pro.tagline":      "للممارسين النشطين",
-    "plan.pro.badge":        "الأكثر شيوعاً",
-    "plan.pro.btn":          "اشترك — 800 دج/شهر",
-    "plan.pro.f1":           "تنبؤات غير محدودة",
-    "plan.pro.f2":           "حتى 3 أطباء",
-    "plan.pro.f3":           "تقارير PDF متقدمة",
-    "plan.pro.f4":           "تصدير CSV للبيانات",
-    "plan.pro.f5":           "دعم ذو أولوية",
-    "plan.clinic.name":      "عيادة",
-    "plan.clinic.tagline":   "للهياكل متعددة المواقع",
-    "plan.clinic.btn":       "اشترك — 2 000 دج/شهر",
-    "plan.clinic.f1":        "تنبؤات غير محدودة",
-    "plan.clinic.f2":        "أطباء غير محدودين",
-    "plan.clinic.f3":        "لوحة تحكم متعددة المواقع",
-    "plan.clinic.f4":        "واجهة API مخصصة",
-    "plan.clinic.f5":        "تكامل HIS / LIS",
-    "plan.clinic.f6":        "دعم مخصص 24/7",
-    "pm.subtitle":           "أكمل النموذج — سيتواصل معك فريقنا خلال 24 ساعة لتفعيل اشتراكك.",
-    "pm.label_name":         "الاسم الكامل *",
-    "pm.label_email":        "البريد الإلكتروني المهني *",
-    "pm.label_phone":        "الهاتف",
-    "pm.label_wilaya":       "الولاية",
-    "pm.label_structure":    "المؤسسة / الهيكل",
-    "pm.placeholder_name":   "د. محمد عمراني",
-    "pm.placeholder_email":  "contact@clinique.dz",
-    "pm.placeholder_phone":  "+213 6xx xxx xxx",
-    "pm.placeholder_wilaya": "اختر…",
-    "pm.placeholder_struct": "جامعي تلمسان، عيادة الشفاء…",
-    "pm.btn_activate":       "تفعيل الاشتراك",
-    "pm.processing":         "جارٍ المعالجة…",
-    "pm.activated":          "✓ تم تفعيل الاشتراك",
-    "pm.error_fields":       "⚠ يرجى إدخال اسمك وبريدك الإلكتروني.",
-    "pm.error_server":       "❌ تعذّر الاتصال بالخادم. تحقق من اتصالك.",
-    "pm.title_free":         "تفعيل حسابك المجاني",
-    "pm.title_plan":         "الاشتراك في خطة",
-    "pm.period":             "/شهر",
-  };
+  }
+};
 
 let currentLang = localStorage.getItem('nephroai_lang') || 'fr';
 
@@ -1644,9 +1331,6 @@ function setLang(lang) {
   // Re-render nav if app visible
   if(currentUser) buildNav();
 
-  // Refresh pricing section if already built
-  if(pricingBuilt) renderPricingCards();
-
   // Update search placeholder
   const si = document.getElementById('searchInput');
   if(si) si.placeholder = t('hist.search');
@@ -1655,10 +1339,7 @@ function setLang(lang) {
 // ════════════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════════════
-// Auto-detect: localhost → Flask dev server | production → same origin
-const FLASK = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? 'http://127.0.0.1:5000'
-  : window.location.origin;
+const FLASK  = 'http://127.0.0.1:5000';
 const TK_KEY = 'nephroai_token_v2';
 const DB_KEY = 'nephroai_patients_v2';
 
@@ -1703,79 +1384,19 @@ async function doLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value.trim();
   if(!user||!pass){ showErr(t('error.fields')); return; }
-
   btn.disabled=true; btn.textContent=t('common.loading');
-  const errEl = document.getElementById('loginError');
-  errEl.style.display='none';
-
-  const loginUrl = `${FLASK}/login`;
-  console.log('[NephroAI] FLASK base URL:', FLASK);
-  console.log('[NephroAI] Login URL:', loginUrl);
-  console.log('[NephroAI] Username:', user);
-
-  let rawText = '';
   try {
-    const r = await fetch(loginUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: user, password: pass })
-    });
-
-    console.log('[NephroAI] HTTP status:', r.status, r.statusText);
-    console.log('[NephroAI] Content-Type:', r.headers.get('content-type'));
-
-    rawText = await r.text();
-    console.log('[NephroAI] Raw response:', rawText);
-
-    let d;
-    try {
-      d = JSON.parse(rawText);
-    } catch(parseErr) {
-      console.error('[NephroAI] JSON parse error:', parseErr);
-      showErr(`Réponse serveur invalide (HTTP ${r.status}). Vérifiez la console.`);
-      btn.disabled=false; btn.textContent=t('login.btn');
-      return;
-    }
-
-    console.log('[NephroAI] Parsed response:', d);
-
-    // Accept both {success:true, token:...} and {token:...} without explicit success flag
-    const token = d.token || d.access_token;
-    const ok    = d.success === true || (r.ok && token);
-
-    if (!ok) {
-      const msg = d.error || d.message || d.detail || t('error.credentials');
-      console.warn('[NephroAI] Login rejected by server:', msg);
-      showErr(msg);
-      btn.disabled=false; btn.textContent=t('login.btn');
-      return;
-    }
-
-    if (token) {
-      setToken(token);
-      console.log('[NephroAI] Token saved ✓');
-    } else {
-      console.warn('[NephroAI] No token in response — continuing without token');
-    }
-
-    currentUser = d;
-    console.log('[NephroAI] Login success, role:', d.role);
+    const r=await fetch(`${FLASK}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+    const d=await r.json();
+    if(!r.ok||!d.success){ showErr(d.error||t('error.credentials')); btn.disabled=false; btn.textContent=t('login.btn'); return; }
+    setToken(d.token);
+    currentUser=d;
     enterApp();
-
-  } catch(networkErr) {
-    console.error('[NephroAI] Network / fetch error:', networkErr);
-    console.log('[NephroAI] Raw text at time of error:', rawText);
-
-    // Fallback: try local accounts (offline mode)
-    const acc = LOCAL_ACCOUNTS[user];
-    if (acc && acc.password === pass) {
-      console.log('[NephroAI] Using local fallback account');
-      currentUser = { username: user, role: acc.role, nom: acc.nom, prenom: acc.prenom };
-      enterApp();
-    } else {
-      showErr(`❌ Impossible de joindre le serveur.\n${networkErr.message}\nURL: ${loginUrl}`);
-      btn.disabled=false; btn.textContent=t('login.btn');
-    }
+  } catch {
+    const acc=LOCAL_ACCOUNTS[user];
+    if(acc&&acc.password===pass){ currentUser={username:user,role:acc.role,nom:acc.nom,prenom:acc.prenom}; enterApp(); }
+    else showErr(t('error.credentials'));
+    btn.disabled=false; btn.textContent=t('login.btn');
   }
 }
 
@@ -1825,8 +1446,6 @@ function enterApp() {
   ap.classList.add('visible');
   buildNav();
   document.getElementById('userChipText').textContent=`${currentUser.prenom} ${currentUser.nom}`;
-  const mut = document.getElementById('mobileUserText');
-  if(mut) mut.textContent=`${currentUser.prenom} ${currentUser.nom}`;
   setLang(currentLang); // apply translations to app
   if(currentUser.role==='medecin') showPage('historique');
   else showPage('analyse');
@@ -1834,28 +1453,6 @@ function enterApp() {
 
 // Super-admins who can see subscriptions
 const ADMIN_USERS = ['docteur_homme', 'docteur_femme'];
-
-// ════════════════════════════════════════════════════════
-//  MOBILE MENU
-// ════════════════════════════════════════════════════════
-function toggleMobileMenu() {
-  const menu     = document.getElementById('mobileMenu');
-  const backdrop = document.getElementById('mobileBackdrop');
-  const btn      = document.getElementById('hamburgerBtn');
-  const isOpen   = menu.classList.contains('open');
-  if (isOpen) {
-    closeMobileMenu();
-  } else {
-    menu.classList.add('open');
-    backdrop.classList.add('open');
-    btn.classList.add('open');
-  }
-}
-function closeMobileMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('mobileBackdrop').classList.remove('open');
-  document.getElementById('hamburgerBtn').classList.remove('open');
-}
 
 function buildNav() {
   const nav = document.getElementById('topbarNav');
@@ -1867,6 +1464,10 @@ function buildNav() {
       {id:'comptes',    key:'nav.accounts'},
       {id:'tarifs',     key:'nav.pricing'},
     ];
+    // Abonnements tab visible only to Karim & Sara
+    if (ADMIN_USERS.includes(currentUser.username)) {
+      // Shown inside historique as a tab, no separate nav item needed
+    }
   } else {
     items = [
       {id:'analyse',      key:'nav.new_analysis'},
@@ -1874,23 +1475,9 @@ function buildNav() {
       {id:'tarifs',       key:'nav.pricing'},
     ];
   }
-  const btns = items.map(i =>
+  nav.innerHTML = items.map(i =>
     `<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}" onclick="showPage('${i.id}')">${t(i.key)}</button>`
   ).join('');
-  nav.innerHTML = btns;
-
-  // Also populate mobile nav
-  const mobileNav = document.getElementById('mobileNav');
-  if (mobileNav) {
-    mobileNav.innerHTML = items.map(i =>
-      `<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}" onclick="showPage('${i.id}');closeMobileMenu()">${t(i.key)}</button>`
-    ).join('');
-  }
-
-  // Sync mobile lang buttons
-  document.querySelectorAll('.mobile-lang-row .lang-btn').forEach(b => {
-    b.classList.toggle('active', b.textContent.trim() === (currentLang==='ar'?'ع':currentLang.toUpperCase()));
-  });
 }
 
 function showPage(id) {
@@ -1898,13 +1485,13 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const el=document.getElementById('page-'+id);
   if(el) el.classList.add('active');
-  // Sync both desktop and mobile nav buttons
   document.querySelectorAll('.tnav').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
   if(id==='historique')   loadHistorique();
   if(id==='comptes')      loadAccounts();
   if(id==='mesresultats') loadMyResults();
   if(id==='tarifs')      loadPricing();
   if(id==='analyse') {
+    // If no result card is showing, make sure empty state is visible
     const rc = document.getElementById('resultCard');
     const re = document.getElementById('resultEmpty');
     if(rc && !rc.classList.contains('show') && re) re.style.display='';
@@ -1913,27 +1500,12 @@ function showPage(id) {
 
 window.addEventListener('DOMContentLoaded', async ()=>{
   setLang(currentLang);
-  console.log('[NephroAI] FLASK =', FLASK);
-  const tok = getToken();
-  if(!tok) return;
-  console.log('[NephroAI] Found saved token, verifying with /me…');
+  if(!getToken()) return;
   try {
-    const r = await afetch(`${FLASK}/me`);
-    console.log('[NephroAI] /me status:', r.status);
-    if(r.ok){
-      const d = await r.json();
-      console.log('[NephroAI] /me response:', d);
-      // Accept {success:true} or any ok response with a username/role
-      if(d.success || d.username){
-        currentUser=d; enterApp(); return;
-      }
-    }
-    console.warn('[NephroAI] /me failed — clearing token');
+    const r=await afetch(`${FLASK}/me`);
+    if(r.ok){ const d=await r.json(); if(d.success){ currentUser=d; enterApp(); return; } }
     clearToken();
-  } catch(e) {
-    console.error('[NephroAI] /me network error:', e);
-    clearToken();
-  }
+  } catch { clearToken(); }
 });
 
 // ════════════════════════════════════════════════════════
@@ -3214,30 +2786,6 @@ document.querySelectorAll('.modal-overlay').forEach(o=>{
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-/* ── Pricing lang bar ── */
-.pricing-lang-bar {
-  display:flex;justify-content:flex-end;
-  padding:24px 24px 0;max-width:1020px;margin:0 auto;
-}
-.pricing-lang-switcher {
-  display:flex;gap:3px;background:rgba(255,255,255,.07);
-  border-radius:8px;padding:3px;
-}
-.plang-btn {
-  background:transparent;border:none;cursor:pointer;
-  color:rgba(255,255,255,.4);font-size:.72rem;font-weight:700;
-  padding:4px 10px;border-radius:6px;font-family:inherit;
-  transition:.15s;letter-spacing:.04em;
-}
-.plang-btn:hover { color:rgba(255,255,255,.75);background:rgba(255,255,255,.1); }
-.plang-btn.plang-active { background:rgba(255,255,255,.16);color:#fff; }
-
-/* RTL in pricing */
-[dir="rtl"] #pricing-section { direction:rtl; }
-[dir="rtl"] .pricing-lang-bar { justify-content:flex-start; }
-[dir="rtl"] .plan-features li { flex-direction:row-reverse; }
-[dir="rtl"] .plan-features { padding-right:0;padding-left:0; }
-
 /* ── Page wrapper ── */
 #pricing-inner {
   background: #05080f;
@@ -3518,70 +3066,59 @@ document.querySelectorAll('.modal-overlay').forEach(o=>{
 // ════════════════════════════════════════════════════════
 //  PRICING PAGE
 // ════════════════════════════════════════════════════════
-function getPricingPlans() {
-  return {
-    free: {
-      label:    t('plan.free.name'),
-      tagline:  t('plan.free.tagline'),
-      price: 0, icon:'🩺', iconClass:'free-icon', badge: null,
-      cardClass:'', btnClass:'free-btn',
-      btnText:  t('plan.free.btn'),
-      features: [t('plan.free.f1'), t('plan.free.f2'), t('plan.free.f3'), t('plan.free.f4')],
-    },
-    professional: {
-      label:    t('plan.pro.name'),
-      tagline:  t('plan.pro.tagline'),
-      price: 800, icon:'⚕️', iconClass:'professional-icon', badge: t('plan.pro.badge'),
-      cardClass:'featured', btnClass:'pro-btn',
-      btnText:  t('plan.pro.btn'),
-      features: [t('plan.pro.f1'), t('plan.pro.f2'), t('plan.pro.f3'), t('plan.pro.f4'), t('plan.pro.f5')],
-    },
-    clinic: {
-      label:    t('plan.clinic.name'),
-      tagline:  t('plan.clinic.tagline'),
-      price: 2000, icon:'🏥', iconClass:'clinic-icon', badge: null,
-      cardClass:'clinic-card', btnClass:'clinic-btn',
-      btnText:  t('plan.clinic.btn'),
-      features: [t('plan.clinic.f1'), t('plan.clinic.f2'), t('plan.clinic.f3'), t('plan.clinic.f4'), t('plan.clinic.f5'), t('plan.clinic.f6')],
-    },
-  };
-}
+const PRICING_PLANS = {
+  free: {
+    label:'Gratuit', tagline:'Idéal pour explorer NephroAI',
+    price:0, icon:'🩺', iconClass:'free-icon', badge:null,
+    cardClass:'', btnClass:'free-btn',
+    btnText:'Commencer gratuitement',
+    features:['5 prédictions / mois','1 médecin','Rapport PDF basique','Support communautaire'],
+  },
+  professional: {
+    label:'Professionnel', tagline:'Pour les praticiens actifs',
+    price:800, icon:'⚕️', iconClass:'professional-icon', badge:'Le plus populaire',
+    cardClass:'featured', btnClass:'pro-btn',
+    btnText:"S'abonner — 800 DA/mois",
+    features:['Prédictions illimitées',"Jusqu'à 3 médecins",'Rapports PDF avancés','Export CSV des données','Support prioritaire'],
+  },
+  clinic: {
+    label:'Clinique', tagline:'Pour les structures multi-sites',
+    price:2000, icon:'🏥', iconClass:'clinic-icon', badge:null,
+    cardClass:'clinic-card', btnClass:'clinic-btn',
+    btnText:"S'abonner — 2 000 DA/mois",
+    features:['Prédictions illimitées','Médecins illimités','Tableau de bord multi-sites','API dédiée','Intégration HIS / LIS','Support 24 h / 7 j dédié'],
+  },
+};
 
 let pricingBuilt = false;
 
-function renderPricingCards() {
-  const PLANS = getPricingPlans();
-  const period = t('pm.period');
+function loadPricing() {
+  if(pricingBuilt) return;
+  pricingBuilt = true;
 
-  // Sync in-pricing lang buttons
-  document.querySelectorAll('.plang-btn').forEach(b => {
-    const map = {'FR':'fr','EN':'en','ع':'ar'};
-    b.classList.toggle('plang-active', map[b.textContent.trim()] === currentLang);
-  });
+  const inner = document.getElementById('pricing-inner');
+  inner.innerHTML = `
+    <section id="pricing-section">
+      <p class="pricing-eyebrow">Tarification transparente</p>
+      <h2 class="pricing-headline">Choisissez le plan<br><em>adapté à votre pratique</em></h2>
+      <p class="pricing-sub">De la consultation individuelle à la structure multi-sites,
+        NephroAI s'adapte à chaque niveau d'exercice avec des tarifs pensés pour le contexte algérien.</p>
+      <div class="pricing-grid" id="pricing-cards"></div>
+      <div class="pricing-proof">
+        <div class="proof-item"><span class="proof-num">98 %</span><span class="proof-label">Précision diagnostique</span></div>
+        <div class="proof-item"><span class="proof-num">+400</span><span class="proof-label">Médecins actifs</span></div>
+        <div class="proof-item"><span class="proof-num">12 k+</span><span class="proof-label">Prédictions réalisées</span></div>
+        <div class="proof-item"><span class="proof-num">24/7</span><span class="proof-label">Disponibilité API</span></div>
+      </div>
+    </section>`;
 
-  // Update section header texts
-  const eyebrow = document.querySelector('.pricing-eyebrow');
-  const headline = document.querySelector('.pricing-headline');
-  const sub = document.querySelector('.pricing-sub');
-  if (eyebrow) eyebrow.textContent = t('pricing.eyebrow');
-  if (headline) headline.innerHTML = `${t('pricing.headline')}<br><em>${t('pricing.headline_em')}</em>`;
-  if (sub) sub.textContent = t('pricing.sub');
-
-  // Update proof labels
-  const proofLabels = document.querySelectorAll('.proof-label');
-  const proofKeys = ['pricing.proof_accuracy','pricing.proof_doctors','pricing.proof_preds','pricing.proof_api'];
-  proofLabels.forEach((el, i) => { if(proofKeys[i]) el.textContent = t(proofKeys[i]); });
-
-  // Rebuild cards
   const grid = document.getElementById('pricing-cards');
-  if (!grid) return;
-  grid.innerHTML = '';
-  Object.entries(PLANS).forEach(([key, p]) => {
+  Object.entries(PRICING_PLANS).forEach(([key, p]) => {
     const card = document.createElement('div');
     card.className = 'plan-card' + (p.cardClass ? ' ' + p.cardClass : '');
     const priceHtml = p.price === 0
-      ? `<span class="plan-price-amount">0</span><span class="plan-price-currency">DA</span><span class="plan-price-period">${period}</span>`
-      : `<span class="plan-price-amount">${p.price.toLocaleString('fr-DZ')}</span><span class="plan-price-currency">DA</span><span class="plan-price-period">${period}</span>`;
+      ? `<span class="plan-price-amount">0</span><span class="plan-price-currency">DA</span><span class="plan-price-period">/mois</span>`
+      : `<span class="plan-price-amount">${p.price.toLocaleString('fr-DZ')}</span><span class="plan-price-currency">DA</span><span class="plan-price-period">/mois</span>`;
     card.innerHTML = `
       ${p.badge ? `<div class="plan-badge">${p.badge}</div>` : ''}
       <div class="plan-icon ${p.iconClass}">${p.icon}</div>
@@ -3592,64 +3129,10 @@ function renderPricingCards() {
       <button class="plan-btn ${p.btnClass}" data-plan="${key}">${p.btnText}</button>`;
     grid.appendChild(card);
   });
+
   grid.querySelectorAll('.plan-btn[data-plan]').forEach(btn => {
     btn.addEventListener('click', () => pmOpen(btn.dataset.plan));
   });
-
-  // Update modal static texts
-  const pmSub = document.querySelector('.pm-subtitle');
-  if (pmSub) pmSub.textContent = t('pm.subtitle');
-  const pmSubmitBtn = document.getElementById('pm-submit-btn');
-  if (pmSubmitBtn && !pmSubmitBtn.disabled) pmSubmitBtn.textContent = t('pm.btn_activate');
-
-  // Update modal form labels & placeholders
-  const labelMap = {
-    'pm-fname':     ['pm.label_name',      'pm.placeholder_name'],
-    'pm-email':     ['pm.label_email',     'pm.placeholder_email'],
-    'pm-phone':     ['pm.label_phone',     'pm.placeholder_phone'],
-    'pm-structure': ['pm.label_structure', 'pm.placeholder_struct'],
-  };
-  Object.entries(labelMap).forEach(([id, [lk, pk]]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const grp = el.closest('.pf-group');
-    if (grp) { const lbl = grp.querySelector('label'); if(lbl) lbl.textContent = t(lk); }
-    el.placeholder = t(pk);
-  });
-  const wilayaEl = document.getElementById('pm-wilaya');
-  if (wilayaEl) {
-    const lbl = wilayaEl.closest('.pf-group')?.querySelector('label');
-    if (lbl) lbl.textContent = t('pm.label_wilaya');
-    if (wilayaEl.options[0]) wilayaEl.options[0].text = t('pm.placeholder_wilaya');
-  }
-}
-
-function loadPricing() {
-  if (!pricingBuilt) {
-    pricingBuilt = true;
-    const inner = document.getElementById('pricing-inner');
-    inner.innerHTML = `
-      <section id="pricing-section">
-        <div class="pricing-lang-bar">
-          <div class="pricing-lang-switcher">
-            <button class="plang-btn" onclick="setLang('fr')">FR</button>
-            <button class="plang-btn" onclick="setLang('en')">EN</button>
-            <button class="plang-btn" onclick="setLang('ar')">ع</button>
-          </div>
-        </div>
-        <p class="pricing-eyebrow"></p>
-        <h2 class="pricing-headline"></h2>
-        <p class="pricing-sub"></p>
-        <div class="pricing-grid" id="pricing-cards"></div>
-        <div class="pricing-proof">
-          <div class="proof-item"><span class="proof-num">98 %</span><span class="proof-label"></span></div>
-          <div class="proof-item"><span class="proof-num">+400</span><span class="proof-label"></span></div>
-          <div class="proof-item"><span class="proof-num">12 k+</span><span class="proof-label"></span></div>
-          <div class="proof-item"><span class="proof-num">24/7</span><span class="proof-label"></span></div>
-        </div>
-      </section>`;
-  }
-  renderPricingCards();
 }
 
 /* ── Modal ── */
@@ -3661,13 +3144,12 @@ const pmSubmit   = document.getElementById('pm-submit-btn');
 const pmPlanInput= document.getElementById('pm-plan-input');
 
 function pmOpen(planKey) {
-  const PLANS = getPricingPlans();
-  const p = PLANS[planKey];
+  const p = PRICING_PLANS[planKey];
   if(!p) return;
   pmPlanInput.value = planKey;
   document.getElementById('pm-plan-tag').textContent = `⬡ Plan ${p.label}`;
   document.getElementById('pm-title').textContent =
-    planKey === 'free' ? t('pm.title_free') : `${t('pm.title_plan')} ${p.label}`;
+    planKey === 'free' ? 'Activer votre compte gratuit' : `S'abonner au plan ${p.label}`;
   pmForm.reset();
   pmPlanInput.value = planKey;
   pmFeedback.className = 'pm-feedback';
@@ -3695,7 +3177,7 @@ pmForm.addEventListener('submit', async function(e) {
   const email     = document.getElementById('pm-email').value.trim();
   if(!full_name || !email) {
     pmFeedback.className = 'pm-feedback error';
-    pmFeedback.textContent = t('pm.error_fields');
+    pmFeedback.textContent = '⚠ Veuillez renseigner votre nom et votre email.';
     return;
   }
 
@@ -3708,7 +3190,7 @@ pmForm.addEventListener('submit', async function(e) {
   };
 
   pmSubmit.disabled = true;
-  pmSubmit.textContent = t('pm.processing');
+  pmSubmit.textContent = 'Traitement en cours…';
 
   try {
     const res  = await fetch(`${FLASK}/subscribe`, {
@@ -3723,21 +3205,21 @@ pmForm.addEventListener('submit', async function(e) {
         ? new Date(data.expires_at).toLocaleDateString('fr-DZ',{day:'2-digit',month:'long',year:'numeric'})
         : '';
       pmFeedback.className = 'pm-feedback success';
-      pmFeedback.textContent = `✅ ${data.message}` + (exp ? `\n${t('pm.activated').replace('✓ ','')} ${exp}.` : '');
+      pmFeedback.textContent = `✅ ${data.message}` + (exp ? `\nActif jusqu'au ${exp}.` : '');
       pmForm.querySelectorAll('input,select').forEach(el => el.disabled = true);
-      pmSubmit.textContent = t('pm.activated');
+      pmSubmit.textContent = '✓ Abonnement activé';
       pmSubmit.style.opacity = '.6';
     } else {
       pmFeedback.className = 'pm-feedback error';
       pmFeedback.textContent = `⚠ ${data.error || 'Une erreur est survenue.'}`;
       pmSubmit.disabled = false;
-      pmSubmit.textContent = getPricingPlans()[pmPlanInput.value]?.btnText || t('pm.btn_activate');
+      pmSubmit.textContent = PRICING_PLANS[pmPlanInput.value]?.btnText || "S'abonner";
     }
   } catch {
     pmFeedback.className = 'pm-feedback error';
-    pmFeedback.textContent = t('pm.error_server');
+    pmFeedback.textContent = '❌ Impossible de joindre le serveur. Vérifiez votre connexion.';
     pmSubmit.disabled = false;
-    pmSubmit.textContent = getPricingPlans()[pmPlanInput.value]?.btnText || t('pm.btn_activate');
+    pmSubmit.textContent = PRICING_PLANS[pmPlanInput.value]?.btnText || "S'abonner";
   }
 });
 </script>
