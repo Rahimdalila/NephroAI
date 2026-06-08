@@ -2,7 +2,8 @@
 #  App.py — NephroAI Flask Backend v6.0 (XGBoost ESRD Pipeline)
 # ================================================================
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, send_from_directory
+import os as _os
 from flask_cors import CORS
 import numpy as np
 import pandas as pd
@@ -1165,7 +1166,8 @@ def model_info():
 
 @app.route("/")
 def home():
-    return render_template("nephroai_final.html")
+    templates_dir = _os.path.join(BASE_DIR, "templates")
+    return send_from_directory(templates_dir, "nephroai_final.html")
 
 # ================================================================
 if __name__ == "__main__":
