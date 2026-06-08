@@ -1,1 +1,2771 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NephroAI — Aide à la décision médicale</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#0B1628;--navy-2:#111E35;--navy-3:#192844;
+  --blue:#2563EB;--blue-h:#1D4ED8;--cyan:#06B6D4;
+  --emerald:#10B981;--amber:#F59E0B;--rose:#F43F5E;
+  --surface:#FFFFFF;--surface-2:#F8FAFC;
+  --border:#E2E8F0;--border-2:#CBD5E1;
+  --text:#0F172A;--muted:#64748B;--light:#94A3B8;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow:0 4px 16px rgba(0,0,0,.1);
+  --shadow-lg:0 20px 60px rgba(0,0,0,.15);
+  --r:14px;--r-sm:9px;
+}
+body{font-family:'Sora',system-ui,sans-serif;background:var(--surface-2);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
 
+/* RTL support */
+[dir="rtl"] body{font-family:'Sora',system-ui,'Segoe UI',Tahoma,sans-serif}
+[dir="rtl"] .analysis-layout{direction:rtl}
+[dir="rtl"] .fsec-label{flex-direction:row-reverse}
+[dir="rtl"] .topbar-nav{margin-left:0;margin-right:1rem}
+[dir="rtl"] .topbar-right{margin-left:0;margin-right:auto}
+[dir="rtl"] .logo{flex-direction:row-reverse}
+[dir="rtl"] .fitem{flex-direction:row-reverse}
+[dir="rtl"] .detail-item .dk,[dir="rtl"] .detail-item .dv{text-align:right}
+[dir="rtl"] .field label,[dir="rtl"] .field .unit,[dir="rtl"] .field .range{text-align:right}
+[dir="rtl"] .page-header{flex-direction:row-reverse}
+[dir="rtl"] th,[dir="rtl"] td{text-align:right}
+[dir="rtl"] .fitem-val{margin-left:0;margin-right:auto}
+[dir="rtl"] .source-note{flex-direction:row-reverse}
+[dir="rtl"] .modal-head{flex-direction:row-reverse}
+[dir="rtl"] .login-box h1,[dir="rtl"] .login-box .sub{text-align:right}
+[dir="rtl"] .lf label{text-align:right}
+[dir="rtl"] .login-demo{text-align:right}
+[dir="rtl"] .user-chip{flex-direction:row-reverse}
+[dir="rtl"] .warn-banner{flex-direction:row-reverse}
+[dir="rtl"] .hist-toolbar{flex-direction:row-reverse}
+
+/* ─── LANG SWITCHER ──────────────── */
+.lang-switcher{display:flex;gap:3px;background:rgba(255,255,255,.08);border-radius:8px;padding:3px}
+.lang-btn{
+  background:transparent;border:none;cursor:pointer;
+  color:rgba(255,255,255,.45);font-size:.72rem;font-weight:700;
+  padding:4px 9px;border-radius:6px;font-family:inherit;
+  transition:.15s;letter-spacing:.03em;
+}
+.lang-btn:hover{color:rgba(255,255,255,.8);background:rgba(255,255,255,.1)}
+.lang-btn.active{background:rgba(255,255,255,.18);color:#fff}
+
+/* ─── LOGIN ─────────────────────────────── */
+#loginScreen{position:fixed;inset:0;z-index:9999;background:var(--navy);display:flex;align-items:center;justify-content:center;overflow:hidden}
+#loginScreen.out{animation:slideOut .5s cubic-bezier(.76,0,.24,1) forwards}
+@keyframes slideOut{to{opacity:0;transform:translateY(-30px)}}
+.login-bg{position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 20% 80%,rgba(37,99,235,.25) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 80% 20%,rgba(6,182,212,.15) 0%,transparent 60%)}
+.login-grid{position:absolute;inset:0;opacity:.04;background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:48px 48px}
+.login-box{position:relative;z-index:2;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:2.5rem;width:100%;max-width:400px;backdrop-filter:blur(20px);box-shadow:0 40px 100px rgba(0,0,0,.5);animation:fadeUp .6s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.login-lang{display:flex;justify-content:flex-end;margin-bottom:1.25rem}
+.login-lang .lang-btn{color:rgba(255,255,255,.35)}
+.login-lang .lang-btn.active{color:#fff;background:rgba(255,255,255,.15)}
+.login-mark{width:48px;height:48px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem}
+.login-mark svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:2.5}
+.login-box h1{font-size:1.5rem;font-weight:700;color:#fff;margin-bottom:.3rem}
+.login-box .sub{font-size:.82rem;color:rgba(255,255,255,.45);margin-bottom:2rem}
+.lf{margin-bottom:1rem}
+.lf label{display:block;font-size:.75rem;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.4rem}
+.lf input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;font-size:.9rem;font-family:inherit;color:#fff;transition:.2s}
+.lf input::placeholder{color:rgba(255,255,255,.2)}
+.lf input:focus{outline:none;border-color:var(--cyan);background:rgba(255,255,255,.09);box-shadow:0 0 0 3px rgba(6,182,212,.15)}
+.login-btn{width:100%;background:linear-gradient(135deg,var(--blue),var(--blue-h));border:none;border-radius:10px;padding:12px;font-size:.9rem;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-top:.5rem;transition:.2s;box-shadow:0 4px 20px rgba(37,99,235,.4)}
+.login-btn:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(37,99,235,.5)}
+.login-btn:disabled{opacity:.5;cursor:wait;transform:none}
+.login-error{margin-top:.75rem;padding:.7rem 1rem;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);border-radius:9px;font-size:.82rem;color:#FDA4AF;display:none}
+.login-demo{margin-top:1.25rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.85rem 1rem;font-size:.75rem;color:rgba(255,255,255,.35);line-height:1.9}
+.login-demo strong{color:rgba(255,255,255,.55)}
+
+/* ─── SHELL ──────────────────────────── */
+#app{display:none}
+#app.visible{display:flex;flex-direction:column;min-height:100vh}
+
+/* ─── TOPBAR ─────────────────────────── */
+.topbar{background:var(--navy);height:58px;display:flex;align-items:center;padding:0 1.5rem;gap:1rem;position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(255,255,255,.07)}
+.logo{display:flex;align-items:center;gap:9px;color:#fff;text-decoration:none;font-size:.95rem;font-weight:700;letter-spacing:-.01em}
+.logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center}
+.logo-icon svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2.5}
+.topbar-nav{display:flex;gap:2px;margin-left:1rem;flex:1}
+.tnav{background:transparent;border:none;color:rgba(255,255,255,.45);padding:6px 14px;border-radius:8px;font-size:.82rem;font-weight:500;font-family:inherit;cursor:pointer;transition:.15s;white-space:nowrap}
+.tnav:hover{background:rgba(255,255,255,.08);color:rgba(255,255,255,.8)}
+.tnav.active{background:rgba(255,255,255,.12);color:#fff}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:.75rem}
+.user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);padding:6px 12px;border-radius:8px;color:rgba(255,255,255,.7);font-size:.78rem;font-weight:500}
+.user-dot{width:7px;height:7px;background:var(--emerald);border-radius:50%;animation:pulse 2.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.logout-btn{background:transparent;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.45);padding:5px 12px;border-radius:7px;font-size:.75rem;font-family:inherit;cursor:pointer;transition:.15s}
+.logout-btn:hover{border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.7)}
+
+/* ─── PAGES ──────────────────────────── */
+.page{display:none}
+.page.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.inner{max-width:1160px;margin:0 auto;padding:1.75rem 1.5rem}
+
+/* ─── eGFR BADGE ─────────────────────── */
+.egfr-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:8px;padding:.4rem .75rem;
+  font-size:.78rem;font-weight:700;font-family:'JetBrains Mono',monospace;
+  margin-bottom:.5rem;
+}
+.egfr-badge .egfr-label{font-weight:400;color:var(--muted);font-family:'Sora',sans-serif;font-size:.74rem}
+.egfr-badge.ok{color:#065F46;background:#F0FDF4;border-color:#A7F3D0}
+.egfr-badge.warn{color:#92400E;background:#FFFBEB;border-color:#FDE68A}
+.egfr-badge.bad{color:#9F1239;background:#FFF1F2;border-color:#FECDD3}
+
+/* ─── ANALYSE PAGE ───────────────────── */
+.analysis-layout{display:grid;grid-template-columns:1fr 460px;gap:1.75rem;align-items:start}
+.result-panel{position:sticky;top:70px}
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+.form-card-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.form-card-header svg{width:18px;height:18px;stroke:var(--blue);fill:none;stroke-width:2}
+.form-card-header h2{font-size:.95rem;font-weight:700;color:var(--text)}
+.form-card-body{padding:1.5rem}
+.fsec{margin-bottom:1.5rem}
+.fsec:last-child{margin-bottom:0}
+.fsec-label{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--light);margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px dashed var(--border);display:flex;align-items:center;gap:6px}
+.fsec-label span{color:var(--muted)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:.875rem}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:.75rem;font-weight:600;color:var(--muted)}
+.field .unit{font-size:.68rem;color:var(--light);font-family:'JetBrains Mono',monospace}
+.field input,.field select{background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:9px 11px;font-size:.88rem;font-family:inherit;color:var(--text);transition:.15s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.field input::placeholder{color:var(--light)}
+.field .range{font-size:.68rem;color:var(--light);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.predict-btn{width:100%;background:linear-gradient(135deg,var(--blue) 0%,var(--blue-h) 100%);color:#fff;border:none;border-radius:11px;padding:14px;font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:1.5rem;box-shadow:0 4px 20px rgba(37,99,235,.3);letter-spacing:.02em}
+.predict-btn:hover{transform:translateY(-1px);box-shadow:0 8px 30px rgba(37,99,235,.4)}
+.predict-btn:disabled{background:linear-gradient(135deg,#94A3B8,#CBD5E1);cursor:wait;transform:none;box-shadow:none}
+.predict-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.5}
+
+/* ─── RESULT PANEL ───────────────────── */
+.result-empty{background:var(--surface);border:1.5px dashed var(--border);border-radius:var(--r);padding:3rem 2rem;text-align:center;min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.result-empty svg{width:52px;height:52px;stroke:var(--border-2);fill:none;stroke-width:1.5;display:block;margin:0 auto 1rem}
+.result-empty h3{font-size:.9rem;font-weight:600;color:var(--light);margin-bottom:.3rem}
+.result-empty p{font-size:.8rem;color:var(--light)}
+.result-loading{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:3rem 2rem;text-align:center;display:none}
+.result-loading.show{display:block}
+.spinner{width:44px;height:44px;margin:0 auto 1.25rem;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-loading p{font-size:.85rem;color:var(--muted)}
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;display:none;box-shadow:var(--shadow)}
+.result-card.show{display:block;animation:fadeIn .4s ease}
+.risk-header{padding:1.75rem 1.5rem 1.5rem;text-align:center;position:relative}
+.risk-header.low{background:linear-gradient(160deg,#F0FDF4,#ECFDF5)}
+.risk-header.medium{background:linear-gradient(160deg,#FFFBEB,#FEF3C7)}
+.risk-header.high{background:linear-gradient(160deg,#FFF1F2,#FFE4E6)}
+.risk-icon{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .875rem;font-size:1.75rem}
+.risk-icon.low{background:#D1FAE5}
+.risk-icon.medium{background:#FDE68A}
+.risk-icon.high{background:#FECDD3}
+.risk-pct{font-size:3.5rem;font-weight:700;line-height:1;margin-bottom:.25rem;font-family:'JetBrains Mono',monospace;letter-spacing:-.02em}
+.risk-pct.low{color:#065F46}
+.risk-pct.medium{color:#92400E}
+.risk-pct.high{color:#9F1239}
+.risk-label{font-size:.8rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.75rem}
+.risk-label.low{color:var(--emerald)}
+.risk-label.medium{color:var(--amber)}
+.risk-label.high{color:var(--rose)}
+.risk-bar-wrap{height:7px;background:rgba(0,0,0,.08);border-radius:99px;max-width:240px;margin:0 auto .875rem;overflow:hidden}
+.risk-bar{height:100%;border-radius:99px;transition:width 1.2s cubic-bezier(.34,1.56,.64,1)}
+.risk-bar.low{background:var(--emerald)}
+.risk-bar.medium{background:var(--amber)}
+.risk-bar.high{background:var(--rose)}
+.risk-desc{font-size:.82rem;color:var(--muted);max-width:280px;margin:0 auto;line-height:1.6}
+.risk-body{padding:1.25rem 1.5rem}
+.factor-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem}
+.fitem{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:.65rem .85rem}
+.fdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fdot.ok{background:var(--emerald)}
+.fdot.warn{background:var(--amber)}
+.fdot.bad{background:var(--rose)}
+.fitem-label{font-size:.75rem;color:var(--muted);flex:1;min-width:0}
+.fitem-val{font-size:.78rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text)}
+.source-note{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:.75rem 1rem;font-size:.78rem;color:var(--muted);line-height:1.6;display:flex;gap:8px}
+.source-note svg{width:14px;height:14px;flex-shrink:0;stroke:var(--blue);fill:none;stroke-width:2;margin-top:1px}
+
+/* ─── HISTORIQUE ─────────────────────── */
+.page-header{margin-bottom:1.5rem;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.page-header h1{font-size:1.3rem;font-weight:700;color:var(--text)}
+.page-header p{font-size:.82rem;color:var(--muted);margin-top:3px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.stat-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.25rem;box-shadow:var(--shadow-sm)}
+.stat-tile .num{font-size:2rem;font-weight:700;line-height:1;margin-bottom:3px;font-family:'JetBrains Mono',monospace}
+.stat-tile .lbl{font-size:.74rem;color:var(--muted);font-weight:500}
+.stat-tile.total .num{color:var(--blue)}
+.stat-tile.high .num{color:var(--rose)}
+.stat-tile.medium .num{color:var(--amber)}
+.stat-tile.low .num{color:var(--emerald)}
+.hist-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+.hist-toolbar{padding:.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.hist-toolbar h3{font-size:.9rem;font-weight:700;color:var(--text)}
+.search-input{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 11px 7px 34px;font-size:.82rem;font-family:inherit;color:var(--text);width:200px;transition:.15s;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:10px center}
+.search-input:focus{outline:none;border-color:var(--blue);background-color:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--surface-2)}
+th{padding:9px 14px;text-align:left;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--light)}
+td{padding:12px 14px;font-size:.84rem;border-top:1px solid var(--border)}
+tr:hover td{background:var(--surface-2)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.badge.low{background:#D1FAE5;color:#065F46}.badge.low::before{background:var(--emerald)}
+.badge.medium{background:#FDE68A;color:#92400E}.badge.medium::before{background:var(--amber)}
+.badge.high{background:#FECDD3;color:#9F1239}.badge.high::before{background:var(--rose)}
+.open-btn{background:var(--surface-2);border:1px solid var(--border);color:var(--muted);padding:4px 11px;border-radius:6px;font-size:.74rem;font-family:inherit;cursor:pointer;transition:.15s;font-weight:500}
+.open-btn:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+
+
+
+/* ─── GESTION DES COMPTES ─────────────────────── */
+.acc-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.25rem;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:.875rem}
+.acc-stat-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.acc-stat-val{font-size:1.5rem;font-weight:700;color:var(--text);line-height:1}
+.acc-stat-lbl{font-size:.73rem;color:var(--muted);margin-top:2px}
+.acc-row{display:flex;align-items:center;justify-content:space-between;padding:.875rem 1.25rem;border-bottom:1px solid var(--border);transition:.12s;gap:.75rem}
+.acc-row:last-child{border-bottom:none}
+.acc-row:hover{background:var(--surface-2)}
+.acc-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.88rem;color:#fff;flex-shrink:0}
+.acc-info{flex:1;min-width:0}
+.acc-name{font-weight:600;font-size:.88rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc-meta{font-size:.73rem;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc-badge-risk{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.acc-badge-risk.high{background:#FECDD3;color:#9F1239}
+.acc-badge-risk.medium{background:#FEF3C7;color:#92400E}
+.acc-badge-risk.low{background:#D1FAE5;color:#065F46}
+.acc-badge-risk.none{background:var(--surface-2);color:var(--light)}
+.acc-actions{display:flex;gap:.4rem;flex-shrink:0}
+.acc-btn{background:var(--surface-2);border:1px solid var(--border);color:var(--muted);padding:5px 10px;border-radius:6px;font-size:.73rem;font-family:inherit;cursor:pointer;transition:.15s;font-weight:500}
+.acc-btn:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+.acc-btn.danger:hover{background:var(--rose);border-color:var(--rose);color:#fff}
+.acc-confirm-row{background:#FFF1F2;border-bottom:1px solid #FECDD3;padding:.875rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;animation:fadeIn .15s ease}
+.acc-confirm-text{font-size:.82rem;color:#9F1239;font-weight:500}
+/* ─── PROFIL MÉDECIN ─────────────────────── */
+.user-chip{cursor:pointer;transition:.15s}
+.user-chip:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.22)}
+.profile-avatar-wrap{display:flex;justify-content:center;margin-bottom:1.25rem;position:relative}
+.profile-avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;border:3px solid var(--blue);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700;color:var(--blue);overflow:hidden}
+.profile-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.avatar-edit-btn{position:absolute;bottom:0;right:calc(50% - 52px);background:var(--blue);border:2px solid var(--surface);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+.avatar-edit-btn:hover{background:var(--blue-h)}
+.avatar-edit-btn svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2.5}
+.profile-name{text-align:center;margin-bottom:1.5rem}
+.profile-name h2{font-size:1.15rem;font-weight:700;color:var(--text);margin-bottom:2px}
+.profile-name .profile-role{font-size:.76rem;color:var(--blue);font-weight:600;background:rgba(37,99,235,.1);padding:2px 10px;border-radius:20px;display:inline-block}
+.profile-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem}
+.profile-field{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:.7rem .9rem}
+.profile-field.full{grid-column:1/-1}
+.profile-field label{font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px}
+.profile-field .pval{font-size:.88rem;font-weight:600;color:var(--text)}
+.profile-field .pval.empty{color:var(--light);font-style:italic;font-weight:400}
+.profile-field input,.profile-field select{width:100%;background:transparent;border:none;font-size:.88rem;font-weight:600;color:var(--text);font-family:inherit;outline:none;padding:0}
+.profile-field input:focus,.profile-field select:focus{color:var(--blue)}
+.profile-edit-mode .profile-field{border-color:var(--blue);background:#EFF6FF}
+.profile-created{font-size:.73rem;color:var(--light);text-align:center;margin-top:.5rem}
+.modal.modal-wide{max-width:600px}
+/* ─── MODAL ──────────────────────────── */
+.modal-overlay{position:fixed;inset:0;z-index:8000;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:20px;width:100%;max-width:500px;box-shadow:var(--shadow-lg);animation:fadeIn .2s ease}
+.modal-head{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{font-size:1rem;font-weight:700;color:var(--text)}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--light);font-size:1.3rem;line-height:1;padding:2px;transition:.15s}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:1.5rem}
+.modal-risk{text-align:center;padding:1.5rem;border-radius:12px;margin-bottom:1.25rem}
+.modal-risk.low{background:#F0FDF4}
+.modal-risk.medium{background:#FFFBEB}
+.modal-risk.high{background:#FFF1F2}
+.modal-pct{font-size:3rem;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1}
+.modal-pct.low{color:#065F46}.modal-pct.medium{color:#92400E}.modal-pct.high{color:#9F1239}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem}
+.detail-item{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:.7rem}
+.detail-item .dk{font-size:.7rem;color:var(--light);margin-bottom:2px;font-weight:600}
+.detail-item .dv{font-size:.88rem;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace}
+.reg-field{margin-bottom:.875rem}
+.reg-field label{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.3rem}
+.reg-field input{width:100%;background:var(--surface-2);border:1.5px solid var(--border);border-radius:9px;padding:9px 12px;font-size:.88rem;font-family:inherit;color:var(--text);transition:.15s}
+.reg-field input:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.modal-actions{display:flex;gap:.75rem;margin-top:1rem}
+.btn-primary{flex:1;background:var(--blue);color:#fff;border:none;padding:10px;border-radius:9px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-primary:hover{background:var(--blue-h)}
+.btn-secondary{background:var(--surface-2);color:var(--muted);border:1px solid var(--border);padding:10px 16px;border-radius:9px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-secondary:hover{border-color:var(--border-2);color:var(--text)}
+.empty-state{text-align:center;padding:3.5rem 2rem;color:var(--light)}
+.empty-state svg{width:48px;height:48px;stroke:var(--border-2);fill:none;stroke-width:1.5;margin:0 auto .875rem;display:block}
+.empty-state p{font-size:.85rem}
+.warn-banner{display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:.75rem 1rem;font-size:.8rem;color:#92400E;margin-bottom:1rem}
+.warn-banner svg{width:16px;height:16px;flex-shrink:0;stroke:#F59E0B;fill:none;stroke-width:2}
+@media(max-width:900px){
+  .analysis-layout{grid-template-columns:1fr}
+  .result-panel{position:static}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .fgrid,.factor-grid,.detail-grid{grid-template-columns:1fr}
+  .topbar-nav{display:none}
+}
+
+/* ─── CLINICAL ALERTS & URGENCY ─── */
+.urgency-banner{
+  display:flex;align-items:flex-start;gap:.75rem;
+  padding:1rem 1.25rem;border-radius:var(--r-sm);
+  margin-bottom:1rem;font-size:.84rem;font-weight:500;line-height:1.5;
+  border-left:4px solid;
+}
+.urgency-banner.critical{background:#FFF1F2;border-color:#E11D48;color:#9F1239}
+.urgency-banner.urgent  {background:#FFF7ED;border-color:#EA580C;color:#9A3412}
+.urgency-banner.moderate{background:#FFFBEB;border-color:#D97706;color:#92400E}
+.urgency-banner.normal  {background:#F0FDF4;border-color:#16A34A;color:#14532D}
+.urgency-banner svg{width:18px;height:18px;flex-shrink:0;margin-top:1px}
+
+.flags-section{margin:1rem 0}
+.flags-title{font-size:.73rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem}
+.flag-item{
+  display:flex;align-items:flex-start;gap:.6rem;
+  padding:.5rem .75rem;border-radius:8px;margin-bottom:.35rem;
+  font-size:.79rem;line-height:1.4;
+}
+.flag-item.critical{background:#FFF1F2;color:#9F1239;border:1px solid #FECDD3}
+.flag-item.high    {background:#FFF7ED;color:#9A3412;border:1px solid #FED7AA}
+.flag-item.moderate{background:#FFFBEB;color:#92400E;border:1px solid #FDE68A}
+.flag-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:.35rem}
+.flag-item.critical .flag-dot{background:#E11D48}
+.flag-item.high     .flag-dot{background:#EA580C}
+.flag-item.moderate .flag-dot{background:#D97706}
+
+.score-row{
+  display:flex;gap:.75rem;margin:.75rem 0;
+}
+.score-chip{
+  flex:1;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:8px;padding:.5rem .75rem;text-align:center;
+}
+.score-chip .sc-val{font-size:1.1rem;font-weight:700;font-family:'JetBrains Mono',monospace}
+.score-chip .sc-lbl{font-size:.69rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+.score-chip.ml .sc-val{color:var(--blue)}
+.score-chip.egfr-chip .sc-val{color:var(--cyan)}
+.score-chip.final .sc-val{color:var(--rose)}
+.score-chip.final.low .sc-val{color:var(--emerald)}
+.score-chip.final.medium .sc-val{color:var(--amber)}
+
+/* CKD stage pill */
+.ckd-pill{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.3rem .85rem;border-radius:20px;font-size:.75rem;font-weight:700;
+  letter-spacing:.03em;margin:.25rem 0;
+}
+.ckd-pill.g1,.ckd-pill.g2{background:#D1FAE5;color:#065F46}
+.ckd-pill.g3a            {background:#FEF9C3;color:#713F12}
+.ckd-pill.g3b            {background:#FFEDD5;color:#7C2D12}
+.ckd-pill.g4             {background:#FEE2E2;color:#7F1D1D}
+.ckd-pill.g5             {background:#E11D48;color:#fff}
+
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-bg"></div>
+  <div class="login-grid"></div>
+  <div class="login-box">
+    <div class="login-lang">
+      <div class="lang-switcher">
+        <button class="lang-btn active" onclick="setLang('fr')">FR</button>
+        <button class="lang-btn" onclick="setLang('en')">EN</button>
+        <button class="lang-btn" onclick="setLang('ar')">ع</button>
+      </div>
+    </div>
+    <div class="login-mark">
+      <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    </div>
+    <h1>NephroAI</h1>
+    <p class="sub" data-i18n="login.sub">Aide à la décision — Maladie Rénale Chronique</p>
+    <div class="lf">
+      <label data-i18n="login.user">Identifiant</label>
+      <input type="text" id="loginUser" data-i18n-placeholder="login.user_ph" placeholder="nom d'utilisateur ou email" autocomplete="username"/>
+    </div>
+    <div class="lf">
+      <label data-i18n="login.pass">Mot de passe</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()" data-i18n="login.btn">Se connecter</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-demo">
+      <strong>🩺 Dr. Karim :</strong> docteur_homme / medecin123<br>
+      <strong>👩‍⚕️ Dr. Sara :</strong> docteur_femme / medecin456<br>
+      <strong>🧑 <span data-i18n="login.patient">Patient</span> :</strong> patient1 / patient123
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALS ══════════════════════════════════ -->
+<!-- ══ PROFIL MÉDECIN MODAL ══════════════════════════ -->
+<div id="profileModal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h3 id="profileModalTitle">Profil Médecin</h3>
+      <button class="modal-close" onclick="closeModal('profileModal')">×</button>
+    </div>
+    <div class="modal-body" id="profileModalBody"></div>
+  </div>
+</div>
+
+<!-- ══ MODIFIER COMPTE PATIENT ══════════════════════════ -->
+<div id="editAccountModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="editAccountTitle">Modifier le compte</h3>
+      <button class="modal-close" onclick="closeModal('editAccountModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editAccountId"/>
+      <div class="fgrid">
+        <div class="reg-field"><label>Prénom</label><input type="text" id="editPrenom"/></div>
+        <div class="reg-field"><label>Nom</label><input type="text" id="editNom"/></div>
+      </div>
+      <div class="reg-field"><label>Email</label><input type="email" id="editEmail"/></div>
+      <div style="border-top:1px dashed var(--border);padding-top:.875rem;margin-top:.25rem">
+        <div style="font-size:.73rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem">
+          🔑 Nouveau mot de passe <span style="font-weight:400;text-transform:none">(laisser vide pour ne pas modifier)</span>
+        </div>
+        <div class="reg-field"><label>Nouveau mot de passe</label><input type="password" id="editNewPwd" placeholder="6 caractères min."/></div>
+        <div class="reg-field"><label>Confirmer</label><input type="password" id="editConfirmPwd" placeholder="Répéter le mot de passe"/></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="saveAccountEdit()">💾 Enregistrer</button>
+        <button class="btn-secondary" onclick="closeModal('editAccountModal')">Annuler</button>
+      </div>
+      <div id="editAccountMsg" style="margin-top:.6rem;font-size:.8rem;text-align:center"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CHANGER MOT DE PASSE MÉDECIN ═══════════════════════ -->
+<div id="changePwdModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>🔑 Changer mon mot de passe</h3>
+      <button class="modal-close" onclick="closeModal('changePwdModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="reg-field"><label>Ancien mot de passe</label><input type="password" id="oldPwd"/></div>
+      <div class="reg-field"><label>Nouveau mot de passe</label><input type="password" id="newPwd1" placeholder="6 caractères min."/></div>
+      <div class="reg-field"><label>Confirmer</label><input type="password" id="newPwd2" placeholder="Répéter le nouveau mot de passe"/></div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="doChangePwd()">Changer</button>
+        <button class="btn-secondary" onclick="closeModal('changePwdModal')">Annuler</button>
+      </div>
+      <div id="changePwdMsg" style="margin-top:.6rem;font-size:.8rem;text-align:center"></div>
+    </div>
+  </div>
+</div>
+
+<div id="detailModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="detailModalTitle" data-i18n="modal.patient_file">Dossier Patient</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">×</button>
+    </div>
+    <div class="modal-body" id="detailModalBody"></div>
+  </div>
+</div>
+
+<div id="registerModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 data-i18n="modal.create_account">Créer un compte patient</h3>
+      <button class="modal-close" onclick="closeModal('registerModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="fgrid">
+        <div class="reg-field"><label data-i18n="form.nom">Nom</label><input type="text" id="regNom"/></div>
+        <div class="reg-field"><label data-i18n="form.prenom">Prénom</label><input type="text" id="regPrenom"/></div>
+      </div>
+      <div class="reg-field"><label data-i18n="form.username">Nom d'utilisateur</label><input type="text" id="regUsername"/></div>
+      <div class="reg-field"><label data-i18n="form.email">Email (optionnel)</label><input type="email" id="regEmail"/></div>
+      <div class="reg-field"><label data-i18n="login.pass">Mot de passe</label><input type="password" id="regPassword"/></div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="doRegister()" data-i18n="modal.create_btn">Créer le compte</button>
+        <button class="btn-secondary" onclick="closeModal('registerModal')" data-i18n="common.cancel">Annuler</button>
+      </div>
+      <div class="login-error" id="regError" style="margin-top:.75rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════ -->
+<div id="app">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+      NephroAI
+    </div>
+    <nav class="topbar-nav" id="topbarNav"></nav>
+    <div class="topbar-right">
+      <div class="lang-switcher">
+        <button class="lang-btn active" onclick="setLang('fr')">FR</button>
+        <button class="lang-btn" onclick="setLang('en')">EN</button>
+        <button class="lang-btn" onclick="setLang('ar')">ع</button>
+      </div>
+      <div class="user-chip" onclick="openProfileModal()" title="Voir mon profil">
+        <div class="user-dot"></div>
+        <span id="userChipText">—</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" data-i18n="common.logout">Déconnexion</button>
+    </div>
+  </div>
+
+  <!-- ANALYSE -->
+  <div id="page-analyse" class="page active">
+    <div class="inner">
+      <div class="analysis-layout">
+        <div>
+          <div class="form-card">
+            <div class="form-card-header">
+              <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+              <h2 data-i18n="form.title">Saisie clinique du patient</h2>
+            </div>
+            <div class="form-card-body">
+              <div class="fsec">
+                <div class="fsec-label">👤 <span data-i18n="form.identity">Identité</span> <span data-i18n="form.optional">(optionnel)</span></div>
+                <div class="fgrid">
+                  <div class="field"><label data-i18n="form.nom">Nom</label><input type="text" id="fNom"/></div>
+                  <div class="field"><label data-i18n="form.prenom">Prénom</label><input type="text" id="fPrenom"/></div>
+                </div>
+              </div>
+              <div class="fsec">
+                <div class="fsec-label">📋 <span data-i18n="form.general">Informations générales</span></div>
+                <div class="fgrid">
+                  <div class="field">
+                    <label data-i18n="form.age">Âge <span class="unit">ans</span></label>
+                    <input type="number" id="fAge" value="50" min="1" max="120"/>
+                    <div class="range">18 – 100</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.sex">Sexe</label>
+                    <select id="fSex">
+                      <option value="1" data-i18n="form.male">Masculin</option>
+                      <option value="0" data-i18n="form.female">Féminin</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.bp">Pression artérielle <span class="unit">mmHg</span></label>
+                    <input type="number" id="fBp" value="80"/>
+                    <div class="range" data-i18n="form.bp_range">Normal : 60 – 90</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.diabetes">Diabète</label>
+                    <select id="fDiabetes">
+                      <option value="0" data-i18n="common.no">Non</option>
+                      <option value="1" data-i18n="common.yes">Oui</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="fsec">
+                <div class="fsec-label">🧪 <span data-i18n="form.biology">Bilan biologique</span></div>
+                <div class="fgrid">
+                  <div class="field">
+                    <label data-i18n="form.creatinine">Créatinine <span class="unit">mg/dL</span></label>
+                    <input type="number" id="fCreatinine" step="0.1" value="1.2"/>
+                    <div class="range" data-i18n="form.creat_range">Normal : 0.5 – 1.2</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.glucose">Glycémie <span class="unit">mg/dL</span></label>
+                    <input type="number" id="fGlucose" value="100"/>
+                    <div class="range" data-i18n="form.gluc_range">Normal : 70 – 100</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.hemoglobin">Hémoglobine <span class="unit">g/dL</span></label>
+                    <input type="number" id="fHemo" step="0.1" value="14"/>
+                    <div class="range" data-i18n="form.hemo_range">Normal : 12 – 17</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.urea">Urée <span class="unit">mg/dL</span></label>
+                    <input type="number" id="fUrea" value="25"/>
+                    <div class="range" data-i18n="form.urea_range">Normal : 10 – 50</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.sodium">Sodium <span class="unit">mEq/L</span></label>
+                    <input type="number" id="fSodium" value="138"/>
+                    <div class="range" data-i18n="form.sodium_range">Normal : 135 – 145</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.potassium">Potassium <span class="unit">mEq/L</span></label>
+                    <input type="number" id="fPotassium" step="0.1" value="4.2"/>
+                    <div class="range" data-i18n="form.potass_range">Normal : 3.5 – 5.0</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.albumin">Albumine <span class="unit">g/dL</span></label>
+                    <input type="number" id="fAlbumin" step="0.1" value="3.8"/>
+                    <div class="range" data-i18n="form.alb_range">Normal : 3.5 – 5.0</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="form.protein">Protéines urinaires</label>
+                    <select id="fProtein">
+                      <option value="0" data-i18n="form.protein_neg">Négatives</option>
+                      <option value="1" data-i18n="form.protein_pos">Positives</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div id="flaskWarn" class="warn-banner" style="display:none">
+                <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span data-i18n="warn.offline">Serveur non connecté — résultat estimé localement.</span>
+              </div>
+              <button class="predict-btn" id="predictBtn" onclick="runPrediction()">
+                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span data-i18n="form.predict_btn">Prédire le risque rénal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="result-panel">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:1rem">
+            <div style="width:30px;height:30px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div>
+              <div style="font-size:.9rem;font-weight:700;color:var(--text)" data-i18n="result.panel_title">Résultat de l'analyse</div>
+              <div style="font-size:.72rem;color:var(--muted)" data-i18n="result.panel_sub">Mis à jour après chaque prédiction</div>
+            </div>
+          </div>
+          <div id="resultEmpty" class="result-empty">
+            <div class="empty-anim">
+              <svg viewBox="0 0 80 80" width="80" height="80">
+                <circle cx="40" cy="40" r="35" fill="none" stroke="var(--border)" stroke-width="3"/>
+                <path d="M40 18 C40 18 55 30 55 42 C55 54 48 60 40 62 C32 60 25 54 25 42 C25 30 40 18 40 18Z" fill="none" stroke="var(--blue)" stroke-width="2" stroke-dasharray="4 3" opacity=".5">
+                  <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="8s" repeatCount="indefinite"/>
+                </path>
+                <circle cx="40" cy="40" r="8" fill="none" stroke="var(--cyan)" stroke-width="2">
+                  <animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <line x1="40" y1="20" x2="40" y2="30" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" opacity=".4">
+                  <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="3s" repeatCount="indefinite"/>
+                </line>
+              </svg>
+            </div>
+            <h3 data-i18n="result.empty_title" style="margin-top:1.25rem;font-size:1rem;font-weight:700;color:var(--text)">Aucune analyse</h3>
+            <p data-i18n="result.empty_sub" style="font-size:.83rem;color:var(--muted);margin-top:.4rem;max-width:240px;line-height:1.6">Remplissez le formulaire et cliquez sur « Prédire »</p>
+            <div style="margin-top:1.5rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
+              <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:.4rem"><span style="width:7px;height:7px;border-radius:50%;background:var(--emerald);display:inline-block"></span> DFGe</div>
+              <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:.4rem"><span style="width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block"></span> Score ML</div>
+              <div style="background:var(--surface-2);border:1px solid var(--border);padding:.4rem .85rem;font-size:.72rem;color:var(--muted);border-radius:8px;display:flex;align-items:center;gap:.4rem"><span style="width:7px;height:7px;border-radius:50%;background:var(--rose);display:inline-block"></span> Alertes</div>
+            </div>
+          </div>
+          <div id="resultLoading" class="result-loading">
+            <div class="spinner"></div>
+            <p id="loadingTxt"></p>
+          </div>
+          <div id="resultCard" class="result-card">
+            <div id="riskHeader" class="risk-header low">
+              <div id="riskIcon" class="risk-icon low">🟢</div>
+              <div id="egfrBadge" class="egfr-badge ok" style="margin-bottom:.75rem"></div>
+              <div id="riskPct" class="risk-pct low">0%</div>
+              <div id="riskLabel" class="risk-label low"></div>
+              <div class="risk-bar-wrap"><div id="riskBar" class="risk-bar low" style="width:0%"></div></div>
+              <p id="riskDesc" class="risk-desc" style="margin-top:.5rem"></p>
+            </div>
+            <div class="risk-body">
+              <!-- Urgency banner — dynamic medical message -->
+              <div id="urgencyBanner" class="urgency-banner normal" style="margin-top:.5rem"></div>
+              <!-- Score comparison row -->
+              <div class="score-row" id="scoreRow"></div>
+              <!-- Clinical flags -->
+              <div id="flagsSection" class="flags-section" style="display:none"></div>
+              <!-- Biological factors -->
+              <div class="factor-grid" id="factorGrid"></div>
+              <!-- Disclaimer -->
+              <div class="source-note" style="margin-top:.75rem">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <span data-i18n="result.disclaimer">Outil d'aide à la décision. Ce résultat ne remplace pas l'évaluation clinique du médecin.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORIQUE -->
+  <div id="page-historique" class="page">
+    <div class="inner">
+      <div class="page-header">
+        <div>
+          <h1 data-i18n="hist.title">Historique des patients</h1>
+          <p data-i18n="hist.sub">Toutes les analyses enregistrées</p>
+        </div>
+        <button class="btn-primary" style="width:auto;padding:9px 18px" onclick="showPage('analyse')" data-i18n="hist.new_analysis">+ Nouvelle analyse</button>
+      </div>
+      <div class="stats-row" id="statsRow">
+        <div class="stat-tile total"><div class="num" id="stTotal">—</div><div class="lbl" data-i18n="stats.total">Total patients</div></div>
+        <div class="stat-tile high"><div class="num" id="stHigh">—</div><div class="lbl" data-i18n="stats.high">Risque élevé</div></div>
+        <div class="stat-tile medium"><div class="num" id="stMedium">—</div><div class="lbl" data-i18n="stats.medium">Risque modéré</div></div>
+        <div class="stat-tile low"><div class="num" id="stLow">—</div><div class="lbl" data-i18n="stats.low">Risque faible</div></div>
+      </div>
+      <div class="hist-card">
+        <div class="hist-toolbar">
+          <h3 data-i18n="hist.records">Dossiers patients</h3>
+          <input type="text" class="search-input" id="searchInput" data-i18n-placeholder="hist.search" placeholder="Rechercher un patient…" oninput="filterTable()"/>
+        </div>
+        <div id="tableWrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPTES -->
+  <div id="page-comptes" class="page">
+    <div class="inner">
+
+      <!-- ── En-tête ── -->
+      <div class="page-header">
+        <div>
+          <h1 data-i18n="accounts.title">Gestion des comptes</h1>
+          <p data-i18n="accounts.sub">Créer et gérer les accès patients</p>
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <button class="btn-secondary" id="btnChangePwd" onclick="openChangePwdModal()" style="display:none">
+            🔑 Changer mot de passe
+          </button>
+          <button class="btn-primary" style="width:auto;padding:9px 18px;background:var(--emerald)" onclick="openModal('registerModal')" data-i18n="accounts.new">+ Nouveau patient</button>
+        </div>
+      </div>
+
+      <!-- ── Stats rapides ── -->
+      <div id="accountsStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem"></div>
+
+      <!-- ── Tableau patients ── -->
+      <div class="hist-card">
+        <div class="hist-toolbar">
+          <h3 data-i18n="accounts.active">Comptes patients actifs</h3>
+          <input type="text" class="search-input" id="accountSearch"
+                 placeholder="Rechercher par nom, prénom, identifiant…"
+                 oninput="filterAccounts()" style="width:260px"/>
+        </div>
+        <div id="accountsList"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MES RÉSULTATS -->
+  <div id="page-mesresultats" class="page">
+    <div class="inner">
+      <div class="page-header">
+        <div>
+          <h1 data-i18n="myresults.title">Mes résultats</h1>
+          <p data-i18n="myresults.sub">Historique de vos analyses</p>
+        </div>
+        <button class="btn-primary" style="width:auto;padding:9px 18px" onclick="showPage('analyse')" data-i18n="hist.new_analysis">+ Nouvelle analyse</button>
+      </div>
+      <div id="myResultsWrap"></div>
+    </div>
+  </div>
+  <!-- TARIFS -->
+  <div id="page-tarifs" class="page">
+    <div id="pricing-inner"></div>
+  </div>
+
+</div>
+// ════════════════════════════════════════════════════════
+//  INTERNATIONALISATION — FR / EN / AR
+// ════════════════════════════════════════════════════════
+const TRANSLATIONS = {
+  fr: {
+    "login.sub":        "Aide à la décision — Maladie Rénale Chronique",
+    "login.user":       "Identifiant",
+    "login.user_ph":    "nom d'utilisateur ou email",
+    "login.pass":       "Mot de passe",
+    "login.btn":        "Se connecter",
+    "login.patient":    "Patient",
+    "common.logout":    "Déconnexion",
+    "common.cancel":    "Annuler",
+    "common.yes":       "Oui",
+    "common.no":        "Non",
+    "common.open":      "Ouvrir",
+    "common.delete":    "Supprimer",
+    "form.title":       "Saisie clinique du patient",
+    "form.identity":    "Identité",
+    "form.optional":    "(optionnel — pour l'archivage)",
+    "form.general":     "Informations générales",
+    "form.biology":     "Bilan biologique",
+    "form.nom":         "Nom",
+    "form.prenom":      "Prénom",
+    "form.username":    "Nom d'utilisateur",
+    "form.email":       "Email (optionnel)",
+    "form.age":         "Âge",
+    "form.sex":         "Sexe",
+    "form.male":        "Masculin",
+    "form.female":      "Féminin",
+    "form.bp":          "Pression artérielle",
+    "form.bp_range":    "Normal : 60 – 90",
+    "form.diabetes":    "Diabète",
+    "form.creatinine":  "Créatinine",
+    "form.creat_range": "Normal : 0.5 – 1.2",
+    "form.glucose":     "Glycémie",
+    "form.gluc_range":  "Normal : 70 – 100",
+    "form.hemoglobin":  "Hémoglobine",
+    "form.hemo_range":  "Normal : 12 – 17",
+    "form.urea":        "Urée",
+    "form.urea_range":  "Normal : 10 – 50",
+    "form.sodium":      "Sodium",
+    "form.sodium_range":"Normal : 135 – 145",
+    "form.potassium":   "Potassium",
+    "form.potass_range":"Normal : 3.5 – 5.0",
+    "form.albumin":     "Albumine",
+    "form.alb_range":   "Normal : 3.5 – 5.0",
+    "form.protein":     "Protéines urinaires",
+    "form.protein_neg": "Négatives",
+    "form.protein_pos": "Positives",
+    "form.predict_btn": "Prédire le risque rénal",
+    "warn.offline":     "Serveur non connecté — résultat estimé localement.",
+    "result.empty_title":"Aucune analyse",
+    "result.empty_sub": "Remplissez le formulaire et cliquez sur « Prédire »",
+    "result.disclaimer":"Outil d'aide à la décision. Ce résultat ne remplace pas l'évaluation clinique du médecin.",
+    "result.low_label": "Risque Faible",
+    "result.med_label": "Risque Modéré",
+    "result.high_label":"Risque Élevé",
+    "result.low_desc":  "Les paramètres biologiques sont dans les limites normales. Un suivi annuel est recommandé.",
+    "result.med_desc":  "Certains paramètres nécessitent une surveillance rapprochée. Consultez dans les 4 semaines.",
+    "result.high_desc": "Des paramètres significativement anormaux nécessitent une prise en charge néphrologiste urgente.",
+"result.urgency_critical": "⚠️ URGENCE NÉPHROLOGIQUE — Anomalies biologiques critiques. Transfert hospitalier immédiat recommandé.",
+
+"result.urgency_urgent": "🔴 Atteinte rénale sévère (DFGe < 30). Consultation néphrologique rapide recommandée.",
+
+"result.urgency_moderate": "🟡 Atteinte rénale modérée (G3a–G3b). Surveillance médicale recommandée.",
+
+"result.urgency_normal": "🟢 Paramètres biologiques dans les limites normales. Suivi annuel recommandé.",
+    "result.flags_title":      "Alertes cliniques",
+    "result.ml_score":         "Score ML",
+    "result.ckd_stage":        "Stade MRC",
+    "result.panel_title": "Résultat de l'analyse",
+    "result.panel_sub":   "Mis à jour après chaque prédiction",
+    "result.egfr":      "DFGe",
+    "hist.title":       "Historique des patients",
+    "hist.sub":         "Toutes les analyses enregistrées",
+    "hist.new_analysis":"+ Nouvelle analyse",
+    "hist.records":     "Dossiers patients",
+    "hist.search":      "Rechercher un patient…",
+    "hist.col_patient": "Patient",
+    "hist.col_age":     "Âge",
+    "hist.col_creat":   "Créatinine",
+    "hist.col_egfr":    "DFGe",
+    "hist.col_date":    "Date",
+    "hist.col_risk":    "Risque",
+    "hist.col_score":   "Score",
+    "stats.total":      "Total patients",
+    "stats.high":       "Risque élevé",
+    "stats.medium":     "Risque modéré",
+    "stats.low":        "Risque faible",
+    "accounts.title":   "Gestion des comptes",
+    "accounts.sub":     "Créer et gérer les accès patients",
+    "accounts.new":     "+ Nouveau patient",
+    "accounts.active":  "Comptes patients actifs",
+    "myresults.title":  "Mes résultats",
+    "myresults.sub":    "Historique de vos analyses",
+    "modal.patient_file":"Dossier Patient",
+    "modal.create_account":"Créer un compte patient",
+    "modal.create_btn": "Créer le compte",
+    "nav.analyse":      "Analyse",
+    "nav.history":      "Historique",
+    "nav.accounts":     "Comptes patients",
+    "nav.new_analysis": "Nouvelle analyse",
+    "nav.myresults":    "Mes résultats",
+    "nav.pricing":      "Tarifs",
+    "factor.creatinine":"Créatinine",
+    "factor.egfr":      "DFGe (CKD-EPI)",
+    "factor.bp":        "Pression art.",
+    "factor.hemoglobin":"Hémoglobine",
+    "factor.glucose":   "Glycémie",
+    "factor.urea":      "Urée",
+    "factor.albumin":   "Albumine",
+    "factor.protein":   "Protéinurie",
+    "factor.diabetes":  "Diabète",
+    "factor.sodium":    "Sodium",
+    "factor.potassium": "Potassium",
+    "loading.1":        "Analyse des paramètres cliniques…",
+    "loading.2":        "Calcul du DFGe (CKD-EPI 2021)…",
+    "loading.3":        "Évaluation du risque KDIGO…",
+    "badge.low":        "Faible",
+    "badge.medium":     "Modéré",
+    "badge.high":       "Élevé",
+    "error.fields":     "Identifiant et mot de passe requis.",
+    "error.credentials":"Identifiants incorrects.",
+    "error.server_reg": "Serveur non disponible.",
+    "error.username_pw":"Username et mot de passe requis.",
+    "modal.account_created":"✅ Compte créé\n\nUsername : ",
+    "modal.pw_label":   "\nMot de passe : ",
+    "accounts.active_badge": "✓ Actif",
+    "common.loading":   "Chargement…",
+    "common.no_patient":"Aucun patient enregistré",
+    "common.no_account":"Aucun compte patient. Créez-en un avec le bouton ci-dessus.",
+    "common.no_result": "Aucun résultat. Effectuez une analyse.",
+    "detail.date_age":  "Âge",
+  },
+  en: {
+    "login.sub":        "Clinical Decision Support — Chronic Kidney Disease",
+    "login.user":       "Username",
+    "login.user_ph":    "username or email",
+    "login.pass":       "Password",
+    "login.btn":        "Sign in",
+    "login.patient":    "Patient",
+    "common.logout":    "Sign out",
+    "common.cancel":    "Cancel",
+    "common.yes":       "Yes",
+    "common.no":        "No",
+    "common.open":      "Open",
+    "common.delete":    "Delete",
+    "form.title":       "Patient clinical data",
+    "form.identity":    "Identity",
+    "form.optional":    "(optional — for record keeping)",
+    "form.general":     "General information",
+    "form.biology":     "Lab results",
+    "form.nom":         "Last name",
+    "form.prenom":      "First name",
+    "form.username":    "Username",
+    "form.email":       "Email (optional)",
+    "form.age":         "Age",
+    "form.sex":         "Sex",
+    "form.male":        "Male",
+    "form.female":      "Female",
+    "form.bp":          "Blood pressure",
+    "form.bp_range":    "Normal: 60 – 90",
+    "form.diabetes":    "Diabetes",
+    "form.creatinine":  "Creatinine",
+    "form.creat_range": "Normal: 0.5 – 1.2",
+    "form.glucose":     "Blood glucose",
+    "form.gluc_range":  "Normal: 70 – 100",
+    "form.hemoglobin":  "Hemoglobin",
+    "form.hemo_range":  "Normal: 12 – 17",
+    "form.urea":        "Urea",
+    "form.urea_range":  "Normal: 10 – 50",
+    "form.sodium":      "Sodium",
+    "form.sodium_range":"Normal: 135 – 145",
+    "form.potassium":   "Potassium",
+    "form.potass_range":"Normal: 3.5 – 5.0",
+    "form.albumin":     "Albumin",
+    "form.alb_range":   "Normal: 3.5 – 5.0",
+    "form.protein":     "Urinary proteins",
+    "form.protein_neg": "Negative",
+    "form.protein_pos": "Positive",
+    "form.predict_btn": "Predict renal risk",
+    "warn.offline":     "Server not connected — result estimated locally.",
+    "result.empty_title":"No analysis yet",
+    "result.empty_sub": "Fill the form and click \"Predict\"",
+    "result.disclaimer":"Decision support tool. This result does not replace clinical physician evaluation.",
+    "result.low_label": "Low Risk",
+    "result.med_label": "Moderate Risk",
+    "result.high_label":"High Risk",
+    "result.low_desc":  "Biological parameters are within normal limits. Annual follow-up is recommended.",
+    "result.med_desc":  "Some parameters require closer monitoring. Consult within 4 weeks.",
+    "result.high_desc": "Significantly abnormal parameters require urgent nephrology management.",
+    "result.urgency_critical": "⚠️ NEPHROLOGY EMERGENCY — Critical biological abnormalities detected. Immediate hospital transfer recommended.",
+    "result.urgency_urgent":   "🔴 Severe abnormalities detected. Urgent nephrology consultation within 48 hours.",
+    "result.urgency_moderate": "🟡 Disturbed parameters require close monitoring. Consultation within 4 weeks.",
+    "result.urgency_normal":   "🟢 Biological parameters within normal limits. Annual follow-up recommended.",
+    "result.flags_title":      "Clinical Alerts",
+    "result.ml_score":         "ML Score",
+    "result.ckd_stage":        "CKD Stage",
+    "result.panel_title": "Analysis result",
+    "result.panel_sub":   "Updated after each prediction",
+    "result.egfr":      "eGFR",
+    "hist.title":       "Patient history",
+    "hist.sub":         "All recorded analyses",
+    "hist.new_analysis":"+ New analysis",
+    "hist.records":     "Patient records",
+    "hist.search":      "Search patient…",
+    "hist.col_patient": "Patient",
+    "hist.col_age":     "Age",
+    "hist.col_creat":   "Creatinine",
+    "hist.col_egfr":    "eGFR",
+    "hist.col_date":    "Date",
+    "hist.col_risk":    "Risk",
+    "hist.col_score":   "Score",
+    "stats.total":      "Total patients",
+    "stats.high":       "High risk",
+    "stats.medium":     "Moderate risk",
+    "stats.low":        "Low risk",
+    "accounts.title":   "Account management",
+    "accounts.sub":     "Create and manage patient access",
+    "accounts.new":     "+ New patient",
+    "accounts.active":  "Active patient accounts",
+    "myresults.title":  "My results",
+    "myresults.sub":    "Your analysis history",
+    "modal.patient_file":"Patient file",
+    "modal.create_account":"Create patient account",
+    "modal.create_btn": "Create account",
+    "nav.analyse":      "Analysis",
+    "nav.history":      "History",
+    "nav.accounts":     "Patient accounts",
+    "nav.new_analysis": "New analysis",
+    "nav.myresults":    "My results",
+    "nav.pricing":      "Pricing",
+    "factor.egfr":      "eGFR (CKD-EPI)",
+    "factor.bp":        "Blood pressure",
+    "factor.hemoglobin":"Hemoglobin",
+    "factor.glucose":   "Blood glucose",
+    "factor.urea":      "Urea",
+    "factor.albumin":   "Albumin",
+    "factor.protein":   "Proteinuria",
+    "factor.diabetes":  "Diabetes",
+    "factor.sodium":    "Sodium",
+    "factor.potassium": "Potassium",
+    "loading.1":        "Analysing clinical parameters…",
+    "loading.2":        "Computing eGFR (CKD-EPI 2021)…",
+    "loading.3":        "Evaluating KDIGO risk strata…",
+    "badge.low":        "Low",
+    "badge.medium":     "Moderate",
+    "badge.high":       "High",
+    "error.fields":     "Username and password required.",
+    "error.credentials":"Incorrect credentials.",
+    "error.server_reg": "Server unavailable.",
+    "error.username_pw":"Username and password required.",
+    "modal.account_created":"✅ Account created\n\nUsername: ",
+    "modal.pw_label":   "\nPassword: ",
+    "accounts.active_badge":"✓ Active",
+    "common.loading":   "Loading…",
+    "common.no_patient":"No patients registered",
+    "common.no_account":"No patient accounts. Create one with the button above.",
+    "common.no_result": "No results. Perform an analysis.",
+    "detail.date_age":  "Age",
+  },
+  ar: {
+    "login.sub":        "دعم القرار السريري — مرض الكلى المزمن",
+    "login.user":       "اسم المستخدم",
+    "login.user_ph":    "اسم المستخدم أو البريد الإلكتروني",
+    "login.pass":       "كلمة المرور",
+    "login.btn":        "تسجيل الدخول",
+    "login.patient":    "المريض",
+    "common.logout":    "تسجيل الخروج",
+    "common.cancel":    "إلغاء",
+    "common.yes":       "نعم",
+    "common.no":        "لا",
+    "common.open":      "فتح",
+    "common.delete":    "حذف",
+    "form.title":       "البيانات السريرية للمريض",
+    "form.identity":    "الهوية",
+    "form.optional":    "(اختياري — للأرشفة)",
+    "form.general":     "معلومات عامة",
+    "form.biology":     "نتائج الفحوصات المخبرية",
+    "form.nom":         "اللقب",
+    "form.prenom":      "الاسم",
+    "form.username":    "اسم المستخدم",
+    "form.email":       "البريد الإلكتروني (اختياري)",
+    "form.age":         "العمر",
+    "form.sex":         "الجنس",
+    "form.male":        "ذكر",
+    "form.female":      "أنثى",
+    "form.bp":          "ضغط الدم",
+    "form.bp_range":    "الطبيعي : 60 – 90",
+    "form.diabetes":    "السكري",
+    "form.creatinine":  "الكرياتينين",
+    "form.creat_range": "الطبيعي : 0.5 – 1.2",
+    "form.glucose":     "سكر الدم",
+    "form.gluc_range":  "الطبيعي : 70 – 100",
+    "form.hemoglobin":  "الهيموغلوبين",
+    "form.hemo_range":  "الطبيعي : 12 – 17",
+    "form.urea":        "اليوريا",
+    "form.urea_range":  "الطبيعي : 10 – 50",
+    "form.sodium":      "الصوديوم",
+    "form.sodium_range":"الطبيعي : 135 – 145",
+    "form.potassium":   "البوتاسيوم",
+    "form.potass_range":"الطبيعي : 3.5 – 5.0",
+    "form.albumin":     "الألبومين",
+    "form.alb_range":   "الطبيعي : 3.5 – 5.0",
+    "form.protein":     "البروتين في البول",
+    "form.protein_neg": "سلبي",
+    "form.protein_pos": "إيجابي",
+    "form.predict_btn": "تقييم خطر أمراض الكلى",
+    "warn.offline":     "الخادم غير متصل — النتيجة مُقدَّرة محلياً.",
+    "result.empty_title":"لا يوجد تحليل",
+    "result.empty_sub": "أملأ النموذج ثم اضغط على «تقييم»",
+    "result.disclaimer":"أداة دعم قرار. لا تُغني هذه النتيجة عن التقييم السريري للطبيب.",
+    "result.low_label": "خطر منخفض",
+    "result.med_label": "خطر متوسط",
+    "result.high_label":"خطر مرتفع",
+    "result.low_desc":  "المعايير البيولوجية ضمن الحدود الطبيعية. يُنصح بمتابعة سنوية.",
+    "result.med_desc":  "بعض المؤشرات تستدعي مراقبة دقيقة. يُستحسن الاستشارة خلال 4 أسابيع.",
+    "result.high_desc": "مؤشرات غير طبيعية بشكل واضح تستوجب تدخل طبيب كلى عاجل.",
+    "result.urgency_critical": "⚠️ حالة طارئة كلوية — شذوذات حيوية حرجة. إحالة فورية للمستشفى.",
+    "result.urgency_urgent":   "🔴 شذوذات بيولوجية حادة. استشارة أخصائي الكلى خلال 48 ساعة.",
+    "result.urgency_moderate": "🟡 مؤشرات مضطربة تستدعي مراقبة دقيقة. استشارة خلال 4 أسابيع.",
+    "result.urgency_normal":   "🟢 المؤشرات البيولوجية ضمن الحدود الطبيعية. يُنصح بالمتابعة السنوية.",
+    "result.flags_title":      "التنبيهات السريرية",
+    "result.ml_score":         "نقاط النموذج",
+    "result.ckd_stage":        "مرحلة الكلى",
+    "result.panel_title": "نتيجة التحليل",
+    "result.panel_sub":   "يتحدث بعد كل تنبؤ",
+    "result.egfr":      "معدل الترشيح الكبيبي",
+    "hist.title":       "سجل المرضى",
+    "hist.sub":         "جميع التحليلات المسجلة",
+    "hist.new_analysis":"+ تحليل جديد",
+    "hist.records":     "ملفات المرضى",
+    "hist.search":      "البحث عن مريض…",
+    "hist.col_patient": "المريض",
+    "hist.col_age":     "العمر",
+    "hist.col_creat":   "الكرياتينين",
+    "hist.col_egfr":    "معدل الترشيح",
+    "hist.col_date":    "التاريخ",
+    "hist.col_risk":    "الخطر",
+    "hist.col_score":   "النتيجة",
+    "stats.total":      "إجمالي المرضى",
+    "stats.high":       "خطر مرتفع",
+    "stats.medium":     "خطر متوسط",
+    "stats.low":        "خطر منخفض",
+    "accounts.title":   "إدارة الحسابات",
+    "accounts.sub":     "إنشاء وإدارة وصول المرضى",
+    "accounts.new":     "+ مريض جديد",
+    "accounts.active":  "حسابات المرضى النشطة",
+    "myresults.title":  "نتائجي",
+    "myresults.sub":    "سجل تحليلاتك",
+    "modal.patient_file":"ملف المريض",
+    "modal.create_account":"إنشاء حساب مريض",
+    "modal.create_btn": "إنشاء الحساب",
+    "nav.analyse":      "التحليل",
+    "nav.history":      "السجل",
+    "nav.accounts":     "حسابات المرضى",
+    "nav.new_analysis": "تحليل جديد",
+    "nav.myresults":    "نتائجي",
+    "nav.pricing":      "الأسعار",
+    "factor.creatinine":"الكرياتينين",
+    "factor.egfr":      "معدل الترشيح",
+    "factor.bp":        "ضغط الدم",
+    "factor.hemoglobin":"الهيموغلوبين",
+    "factor.glucose":   "سكر الدم",
+    "factor.urea":      "اليوريا",
+    "factor.albumin":   "الألبومين",
+    "factor.protein":   "بروتينية البول",
+    "factor.diabetes":  "السكري",
+    "factor.sodium":    "الصوديوم",
+    "factor.potassium": "البوتاسيوم",
+    "loading.1":        "تحليل المعايير السريرية…",
+    "loading.2":        "حساب معدل الترشيح الكبيبي (CKD-EPI 2021)…",
+    "loading.3":        "تقييم درجة الخطر وفق KDIGO…",
+    "badge.low":        "منخفض",
+    "badge.medium":     "متوسط",
+    "badge.high":       "مرتفع",
+    "error.fields":     "اسم المستخدم وكلمة المرور مطلوبان.",
+    "error.credentials":"بيانات الاعتماد غير صحيحة.",
+    "error.server_reg": "الخادم غير متاح.",
+    "error.username_pw":"اسم المستخدم وكلمة المرور مطلوبان.",
+    "modal.account_created":"✅ تم إنشاء الحساب\n\nاسم المستخدم: ",
+    "modal.pw_label":   "\nكلمة المرور: ",
+    "accounts.active_badge":"✓ نشط",
+    "common.loading":   "جارٍ التحميل…",
+    "common.no_patient":"لا يوجد مرضى مسجلون",
+    "common.no_account":"لا توجد حسابات مرضى. أنشئ واحدًا بالزر أعلاه.",
+    "common.no_result": "لا توجد نتائج. قم بإجراء تحليل.",
+    "detail.date_age":  "العمر",
+  }
+};
+
+let currentLang = localStorage.getItem('nephroai_lang') || 'fr';
+
+function t(key) {
+  return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) ||
+         TRANSLATIONS['fr'][key] || key;
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('nephroai_lang', lang);
+  const isAr = lang === 'ar';
+  document.documentElement.lang = lang;
+  document.documentElement.dir  = isAr ? 'rtl' : 'ltr';
+
+  // Update all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+
+  // Update select options
+  document.querySelectorAll('option[data-i18n]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+
+  // Active lang button in all switchers
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === (lang==='ar'?'ع':lang.toUpperCase()));
+  });
+
+  // Re-render nav if app visible
+  if(currentUser) buildNav();
+
+  // Update search placeholder
+  const si = document.getElementById('searchInput');
+  if(si) si.placeholder = t('hist.search');
+}
+
+// ════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════
+const FLASK  = 'http://127.0.0.1:5000';
+const TK_KEY = 'nephroai_token_v2';
+const DB_KEY = 'nephroai_patients_v2';
+
+let currentUser = null;
+let allPatients = [];
+let currentPage = 'analyse';
+
+function getToken()    { return localStorage.getItem(TK_KEY) || null; }
+function setToken(tk)  { localStorage.setItem(TK_KEY, tk); }
+function clearToken()  { localStorage.removeItem(TK_KEY); }
+function localLoad()   { try { return JSON.parse(localStorage.getItem(DB_KEY)||'[]'); } catch { return []; } }
+function localSave(l)  { localStorage.setItem(DB_KEY, JSON.stringify(l)); }
+function localPush(e)  { const l=localLoad(); l.unshift(e); localSave(l); }
+function localStats()  {
+  const l=localLoad();
+  const high   = l.filter(p=>p.risk_level==='high').length;
+  const medium = l.filter(p=>p.risk_level==='medium').length;
+  const low    = l.filter(p=>p.risk_level==='low').length;
+  return {total: high + medium + low, high, medium, low};
+}
+
+async function afetch(url, opts={}) {
+  const tok = getToken();
+  const headers = {'Content-Type':'application/json',...(opts.headers||{})};
+  if(tok) headers['Authorization'] = `Bearer ${tok}`;
+  const r = await fetch(url, {...opts, headers});
+  if(r.status===401){ showLogin(); throw new Error('session_expired'); }
+  return r;
+}
+
+// ════════════════════════════════════════════════════════
+//  AUTH
+// ════════════════════════════════════════════════════════
+const LOCAL_ACCOUNTS = {
+  docteur_homme:{password:'medecin123',role:'medecin',nom:'Benali',prenom:'Karim'},
+  docteur_femme:{password:'medecin456',role:'medecin',nom:'Aït Yahia',prenom:'Sara'},
+  patient1:     {password:'patient123',role:'patient',nom:'Amrani',prenom:'Mohamed'},
+};
+
+async function doLogin() {
+  const btn  = document.getElementById('loginBtn');
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value.trim();
+  if(!user||!pass){ showErr(t('error.fields')); return; }
+  btn.disabled=true; btn.textContent=t('common.loading');
+  try {
+    const r=await fetch(`${FLASK}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+    const d=await r.json();
+    if(!r.ok||!d.success){ showErr(d.error||t('error.credentials')); btn.disabled=false; btn.textContent=t('login.btn'); return; }
+    setToken(d.token);
+    currentUser=d;
+    enterApp();
+  } catch {
+    const acc=LOCAL_ACCOUNTS[user];
+    if(acc&&acc.password===pass){ currentUser={username:user,role:acc.role,nom:acc.nom,prenom:acc.prenom}; enterApp(); }
+    else showErr(t('error.credentials'));
+    btn.disabled=false; btn.textContent=t('login.btn');
+  }
+}
+
+function showErr(msg){ const e=document.getElementById('loginError'); e.textContent=msg; e.style.display='block'; }
+
+function showLogin() {
+  document.getElementById('app').classList.remove('visible');
+  const ls=document.getElementById('loginScreen');
+  ls.classList.remove('out'); ls.style.display='flex';
+}
+
+async function doLogout() {
+  try{ await afetch(`${FLASK}/logout`,{method:'POST'}); }catch{}
+  clearToken(); currentUser=null; allPatients=[];
+  showLogin();
+}
+
+async function doRegister() {
+  const err=document.getElementById('regError');
+  err.style.display='none';
+  const uname=document.getElementById('regUsername').value.trim();
+  const pass =document.getElementById('regPassword').value.trim();
+  const nom  =document.getElementById('regNom').value.trim();
+  const prenom=document.getElementById('regPrenom').value.trim();
+  const email=document.getElementById('regEmail').value.trim()||null;
+  if(!uname||!pass){ err.textContent=t('error.username_pw'); err.style.display='block'; return; }
+  try {
+    const r=await afetch(`${FLASK}/register`,{method:'POST',body:JSON.stringify({username:uname,password:pass,nom,prenom,email,role:'patient'})});
+    const d=await r.json();
+    if(d.success){
+      alert(t('modal.account_created')+uname+t('modal.pw_label')+pass);
+      closeModal('registerModal');
+      ['regUsername','regEmail','regPassword','regNom','regPrenom'].forEach(id=>{ const e=document.getElementById(id); if(e)e.value=''; });
+      if(currentPage==='comptes') loadAccounts();
+    } else { err.textContent=d.error||'Erreur.'; err.style.display='block'; }
+  } catch { err.textContent=t('error.server_reg'); err.style.display='block'; }
+}
+
+// ════════════════════════════════════════════════════════
+//  APP INIT
+// ════════════════════════════════════════════════════════
+function enterApp() {
+  const ls=document.getElementById('loginScreen');
+  ls.classList.add('out');
+  setTimeout(()=>{ ls.style.display='none'; },500);
+  const ap=document.getElementById('app');
+  ap.classList.add('visible');
+  buildNav();
+  document.getElementById('userChipText').textContent=`${currentUser.prenom} ${currentUser.nom}`;
+  setLang(currentLang); // apply translations to app
+  if(currentUser.role==='medecin') showPage('historique');
+  else showPage('analyse');
+}
+
+function buildNav() {
+  const nav=document.getElementById('topbarNav');
+  const items=currentUser.role==='medecin'
+    ?[{id:'analyse',key:'nav.analyse'},{id:'historique',key:'nav.history'},{id:'comptes',key:'nav.accounts'},{id:'tarifs',key:'nav.pricing'}]
+    :[{id:'analyse',key:'nav.new_analysis'},{id:'mesresultats',key:'nav.myresults'},{id:'tarifs',key:'nav.pricing'}];
+  nav.innerHTML=items.map(i=>`<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}" onclick="showPage('${i.id}')">${t(i.key)}</button>`).join('');
+}
+
+function showPage(id) {
+  currentPage=id;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById('page-'+id);
+  if(el) el.classList.add('active');
+  document.querySelectorAll('.tnav').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+  if(id==='historique')   loadHistorique();
+  if(id==='comptes')      loadAccounts();
+  if(id==='mesresultats') loadMyResults();
+  if(id==='tarifs')      loadPricing();
+  if(id==='analyse') {
+    // If no result card is showing, make sure empty state is visible
+    const rc = document.getElementById('resultCard');
+    const re = document.getElementById('resultEmpty');
+    if(rc && !rc.classList.contains('show') && re) re.style.display='';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', async ()=>{
+  setLang(currentLang);
+  if(!getToken()) return;
+  try {
+    const r=await afetch(`${FLASK}/me`);
+    if(r.ok){ const d=await r.json(); if(d.success){ currentUser=d; enterApp(); return; } }
+    clearToken();
+  } catch { clearToken(); }
+});
+
+// ════════════════════════════════════════════════════════
+//  PREDICTION — heuristique locale calibrée CKD-EPI
+// ════════════════════════════════════════════════════════
+function estimateEgfr(creatinine, age, sex) {
+  if(creatinine<=0||age<=0) return 90;
+  const kappa = sex===0 ? 0.7 : 0.9;
+  const alpha = sex===0 ? -0.241 : -0.302;
+  const sexC  = sex===0 ? 1.012 : 1.0;
+  const ratio = creatinine / kappa;
+  let egfr;
+  if(ratio<1) egfr = 142 * Math.pow(ratio, alpha) * Math.pow(0.9938, age) * sexC;
+  else         egfr = 142 * Math.pow(ratio, -1.200) * Math.pow(0.9938, age) * sexC;
+  return Math.max(1, Math.round(egfr*10)/10);
+}
+
+function localClinicalScore(d) {
+  const egfr = estimateEgfr(d.creatinine, d.age, d.sex);
+
+  let cEgfr;
+  if(egfr>=90)      cEgfr=-1.80;
+  else if(egfr>=60) cEgfr=-0.60;
+  else if(egfr>=45) cEgfr= 0.80;
+  else if(egfr>=30) cEgfr= 1.80;
+  else if(egfr>=15) cEgfr= 2.80;
+  else              cEgfr= 3.80;
+
+  let cCreat;
+  if(d.creatinine<=1.0)      cCreat=-0.40;
+  else if(d.creatinine<=1.2) cCreat= 0.00;
+  else if(d.creatinine<=2.0) cCreat= 0.60;
+  else if(d.creatinine<=4.0) cCreat= 1.40;
+  else if(d.creatinine<=7.0) cCreat= 2.20;
+  else                       cCreat= 3.00;
+
+  const cProtein = d.protein  ? 1.60 : 0.00;
+
+  let cUrea;
+  if(d.urea<=40)      cUrea=-0.20;
+  else if(d.urea<=60) cUrea= 0.30;
+  else if(d.urea<=100)cUrea= 0.90;
+  else                cUrea= 1.60;
+
+  let cHemo;
+  if(d.hemoglobin>=12)     cHemo=-0.10;
+  else if(d.hemoglobin>=10)cHemo= 0.50;
+  else if(d.hemoglobin>=8) cHemo= 1.10;
+  else                     cHemo= 1.70;
+
+  let cBp;
+  if(d.bp<=80)       cBp=-0.20;
+  else if(d.bp<=90)  cBp= 0.00;
+  else if(d.bp<=100) cBp= 0.50;
+  else if(d.bp<=120) cBp= 0.90;
+  else               cBp= 1.40;
+
+  let cAlb;
+  if(d.albumin>=4.0)      cAlb=-0.20;
+  else if(d.albumin>=3.5) cAlb= 0.10;
+  else if(d.albumin>=3.0) cAlb= 0.70;
+  else                    cAlb= 1.30;
+
+  const cDiab = d.diabetes ? 0.70 : 0.00;
+
+  let cGluc;
+  if(d.glucose<=100)      cGluc=0.00;
+  else if(d.glucose<=126) cGluc=0.30;
+  else if(d.glucose<=200) cGluc=0.60;
+  else                    cGluc=1.00;
+
+  const cSodium   = (d.sodium>=135 && d.sodium<=145) ? 0.00 : 0.60;
+  const cPotassium= d.potassium>5.5 ? 0.80 : d.potassium<3.5 ? 0.30 : 0.00;
+
+  let cAge;
+  if(d.age<40)      cAge=-0.30;
+  else if(d.age<60) cAge= 0.10;
+  else if(d.age<75) cAge= 0.40;
+  else              cAge= 0.70;
+
+  const INTERCEPT=-2.20;
+  const logit=INTERCEPT+cEgfr+cCreat+cProtein+cUrea+cHemo+cBp+cAlb+cDiab+cGluc+cSodium+cPotassium+cAge;
+  const prob=1/(1+Math.exp(-logit));
+
+  return {prob: Math.round(prob*10000)/10000, egfr};
+}
+
+function localFactorStatus(d, egfr) {
+  return {
+    creatinine: d.creatinine<=1.2?'ok':d.creatinine<=2.0?'warn':'bad',
+    egfr:       egfr>=60?'ok':egfr>=30?'warn':'bad',
+    bp:         d.bp<=90?'ok':d.bp<=110?'warn':'bad',
+    hemoglobin: d.hemoglobin>=12?'ok':d.hemoglobin>=10?'warn':'bad',
+    glucose:    d.glucose<=100?'ok':d.glucose<=126?'warn':'bad',
+    urea:       d.urea<=50?'ok':d.urea<=80?'warn':'bad',
+    albumin:    d.albumin>=3.5?'ok':d.albumin>=3.0?'warn':'bad',
+    protein:    d.protein?'bad':'ok',
+    diabetes:   d.diabetes?'warn':'ok',
+    sodium:     (d.sodium>=135&&d.sodium<=145)?'ok':'warn',
+    potassium:  (d.potassium>=3.5&&d.potassium<=5.0)?'ok':d.potassium<=5.5?'warn':'bad',
+  };
+}
+
+function classifyRisk(p) {
+  return p<0.30?'low':p<0.65?'medium':'high';
+}
+
+// ── CLIENT-SIDE CLINICAL OVERRIDE (mirrors App.py rules) ──────────────────
+function clinicalOverride(payload, egfr, mlProb) {
+  const flags = [];
+  let minRisk = classifyRisk(mlProb);
+  let minProb = mlProb;
+
+  const k   = parseFloat(payload.potassium) || 4.0;
+  const na  = parseFloat(payload.sodium)    || 140.0;
+  const alb = parseFloat(payload.albumin)   || 4.0;
+  const hb  = parseFloat(payload.hemoglobin)|| 13.0;
+  const cr  = parseFloat(payload.creatinine)|| 1.0;
+
+  function setMin(risk, prob) {
+    const order = ['low','medium','high'];
+    if (order.indexOf(risk) > order.indexOf(minRisk)) minRisk = risk;
+    if (prob > minProb) minProb = prob;
+  }
+
+  // eGFR / CKD Stage
+  if (egfr < 15)      { flags.push({severity:'critical', label:`eGFR ${egfr} — Stade G5 (IRC terminale imminente)`, label_ar:`معدل الترشيح ${egfr} — G5`}); setMin('high', 0.90); }
+  else if (egfr < 30) { flags.push({severity:'critical', label:`eGFR ${egfr} — Stade G4 : risque très élevé`, label_ar:`معدل الترشيح ${egfr} — G4`}); setMin('high', 0.80); }
+  else if (egfr < 45) { flags.push({severity:'high',     label:`eGFR ${egfr} — Stade G3b : surveillance néphrologue`, label_ar:`معدل الترشيح ${egfr} — G3b`}); setMin('medium', 0.55); }
+  else if (egfr < 60) { flags.push({severity:'moderate', label:`eGFR ${egfr} — Stade G3a (IRC modérée)`, label_ar:`معدل الترشيح ${egfr} — G3a`}); setMin('medium', 0.40); }
+
+  // Potassium
+  if      (k > 6.5) { flags.push({severity:'critical', label:`Kaliémie ${k} mEq/L — Hyperkaliémie critique`, label_ar:`البوتاسيوم ${k} — فرط حرج`}); setMin('high', 0.85); }
+  else if (k > 5.5) { flags.push({severity:'high',     label:`Kaliémie ${k} mEq/L — Hyperkaliémie`, label_ar:`البوتاسيوم ${k} — فرط`}); setMin('high', 0.70); }
+  else if (k < 3.0) { flags.push({severity:'high',     label:`Kaliémie ${k} mEq/L — Hypokaliémie sévère`, label_ar:`البوتاسيوم ${k} — نقص شديد`}); setMin('high', 0.65); }
+  else if (k < 3.5) { flags.push({severity:'moderate', label:`Kaliémie ${k} mEq/L — Hypokaliémie légère`, label_ar:`البوتاسيوم ${k} — نقص خفيف`}); setMin('medium', 0.35); }
+
+  // Sodium
+  if      (na < 120 || na > 160) { flags.push({severity:'critical', label:`Natrémie ${na} mEq/L — Dysnatrémie critique`, label_ar:`الصوديوم ${na} — اضطراب حرج`}); setMin('high', 0.85); }
+  else if (na < 130 || na > 155) { flags.push({severity:'high',     label:`Natrémie ${na} mEq/L — Dysnatrémie sévère`, label_ar:`الصوديوم ${na} — اضطراب حاد`}); setMin('high', 0.70); }
+  else if (na < 135 || na > 148) { flags.push({severity:'moderate', label:`Natrémie ${na} mEq/L — Légère dysnatrémie`, label_ar:`الصوديوم ${na} — اضطراب خفيف`}); setMin('medium', 0.35); }
+
+  // Albumin
+  if      (alb < 2.5) { flags.push({severity:'critical', label:`Albumine ${alb} g/dL — Hypoalbuminémie sévère`, label_ar:`الألبومين ${alb} — نقص حاد`}); setMin('high', 0.80); }
+  else if (alb < 3.0) { flags.push({severity:'high',     label:`Albumine ${alb} g/dL — Hypoalbuminémie`, label_ar:`الألبومين ${alb} — نقص`}); setMin('medium', 0.55); }
+  else if (alb < 3.5) { flags.push({severity:'moderate', label:`Albumine ${alb} g/dL — Légèrement abaissée`, label_ar:`الألبومين ${alb} — منخفض قليلاً`}); setMin('medium', 0.35); }
+
+  // Hemoglobin
+  if      (hb < 8.0)  { flags.push({severity:'critical', label:`Hémoglobine ${hb} g/dL — Anémie sévère`, label_ar:`الهيموغلوبين ${hb} — فقر دم حاد`}); setMin('high', 0.75); }
+  else if (hb < 10.0) { flags.push({severity:'high',     label:`Hémoglobine ${hb} g/dL — Anémie modérée néphrogène`, label_ar:`الهيموغلوبين ${hb} — فقر دم معتدل`}); setMin('medium', 0.45); }
+
+  // Creatinine
+  if      (cr > 5.0)  { flags.push({severity:'critical', label:`Créatinine ${cr} mg/dL — IRC avancée`, label_ar:`الكرياتينين ${cr} — قصور متقدم`}); setMin('high', 0.85); }
+  else if (cr > 3.0)  { flags.push({severity:'high',     label:`Créatinine ${cr} mg/dL — Élévation importante`, label_ar:`الكرياتينين ${cr} — ارتفاع ملحوظ`}); setMin('high', 0.70); }
+
+  const criticals = flags.filter(f=>f.severity==='critical');
+  const highs     = flags.filter(f=>f.severity==='high');
+  let urgency = criticals.length ? 'critical' : highs.length || minRisk==='high' ? 'urgent' : minRisk==='medium' ? 'moderate' : 'normal';
+
+  const msgKey = {critical:'result.urgency_critical', urgent:'result.urgency_urgent', moderate:'result.urgency_moderate', normal:'result.urgency_normal'}[urgency];
+
+  return { flags, minRisk, minProb, urgency, msgKey };
+}
+
+function egfrCkdStage(egfr) {
+  if (egfr>=90) return {stage:'G1', label:'G1 (≥90)', cls:'g1'};
+  if (egfr>=60) return {stage:'G2', label:'G2 (60–89)', cls:'g2'};
+  if (egfr>=45) return {stage:'G3a',label:'G3a (45–59)', cls:'g3a'};
+  if (egfr>=30) return {stage:'G3b',label:'G3b (30–44)', cls:'g3b'};
+  if (egfr>=15) return {stage:'G4', label:'G4 (15–29)', cls:'g4'};
+  return {stage:'G5', label:'G5 (<15)', cls:'g5'};
+}
+
+const LOAD_MSGS_KEY=['loading.1','loading.2','loading.3'];
+let loadIdx=0, loadIv=null;
+
+async function runPrediction() {
+  const btn=document.getElementById('predictBtn');
+  btn.disabled=true;
+  document.getElementById('resultEmpty').style.display='none'; // hidden when result shows
+  document.getElementById('resultCard').classList.remove('show');
+  const ld=document.getElementById('resultLoading');
+  ld.classList.add('show');
+  loadIdx=0;
+  document.getElementById('loadingTxt').textContent=t(LOAD_MSGS_KEY[0]);
+  loadIv=setInterval(()=>{ loadIdx=(loadIdx+1)%LOAD_MSGS_KEY.length; document.getElementById('loadingTxt').textContent=t(LOAD_MSGS_KEY[loadIdx]); },900);
+
+  const v=id=>+document.getElementById(id).value;
+  const nom    = currentUser.role==='patient'? currentUser.nom    :(document.getElementById('fNom').value.trim()||'');
+  const prenom = currentUser.role==='patient'? currentUser.prenom :(document.getElementById('fPrenom').value.trim()||'');
+
+  const payload={
+    nom, prenom,
+    age:v('fAge'), sex:v('fSex'), bp:v('fBp'), diabetes:v('fDiabetes'),
+    creatinine:v('fCreatinine'), glucose:v('fGlucose'),
+    hemoglobin:v('fHemo'), urea:v('fUrea'),
+    sodium:v('fSodium'), potassium:v('fPotassium'),
+    albumin:v('fAlbumin'), protein:v('fProtein'),
+  };
+
+  let result=null; let flaskOk=false;
+  try {
+    const r=await afetch(`${FLASK}/predict`,{method:'POST',body:JSON.stringify(payload)});
+    if(r.ok){ const d=await r.json(); if(d.success){ result=d; flaskOk=true; } }
+  } catch(e) {
+    if(e.message==='session_expired'){ clearInterval(loadIv); ld.classList.remove('show'); btn.disabled=false; return; }
+  } finally {
+    clearInterval(loadIv); ld.classList.remove('show'); btn.disabled=false;
+  }
+
+  document.getElementById('flaskWarn').style.display=flaskOk?'none':'flex';
+
+  if(!result){
+    // Fallback local — with clinical override layer
+    const {prob,egfr}=localClinicalScore(payload);
+    const override = clinicalOverride(payload, egfr, prob);
+    const finalProb = override.minProb;
+    const pct = Math.round(finalProb*1000)/10;
+    result={
+      percentage:pct, probability:finalProb,
+      risk_level:override.minRisk,
+      model_used:'clinical_calibrated_v1_local',
+      egfr,
+      factors:localFactorStatus(payload,egfr),
+      clinical_flags: override.flags,
+      urgency: override.urgency,
+      _msgKey: override.msgKey,
+      _mlProb: prob,
+    };
+  } else {
+    // Flask result — also compute override for display enrichment
+    const egfrVal = result.egfr || estimateEgfr(payload.creatinine, payload.age, payload.sex);
+    const override = clinicalOverride(payload, egfrVal, result.probability || 0);
+    // Flask already applied overrides server-side, but we enrich display data
+    result.clinical_flags = result.clinical_flags || override.flags;
+    result.urgency        = result.urgency        || override.urgency;
+    result._msgKey        = result.urgency ? {critical:'result.urgency_critical',urgent:'result.urgency_urgent',moderate:'result.urgency_moderate',normal:'result.urgency_normal'}[result.urgency] : override.msgKey;
+    result._mlProb        = result._mlProb || (result.probability || 0);
+  }
+
+  // Archive locale
+  localPush({...payload, risk_level:result.risk_level, percentage:result.percentage,
+    egfr:result.egfr, predicted_at:new Date().toISOString().slice(0,19).replace('T',' '),
+    username:currentUser.username});
+
+  renderResult(result, payload);
+}
+
+function renderResult(res, payload) {
+  const rl  = res.risk_level || 'low';
+  const pct = typeof res.percentage==='number' ? Math.round(res.percentage*10)/10 : res.percentage;
+  const labelKey = {low:'result.low_label', medium:'result.med_label', high:'result.high_label'}[rl];
+  const icon     = {low:'🟢', medium:'🟡', high:'🔴'}[rl];
+  const urgency  = res.urgency || (rl==='high'?'urgent':rl==='medium'?'moderate':'normal');
+  const msgKey   = res._msgKey || {critical:'result.urgency_critical',urgent:'result.urgency_urgent',moderate:'result.urgency_moderate',normal:'result.urgency_normal'}[urgency];
+
+  document.getElementById('riskHeader').className = `risk-header ${rl}`;
+  document.getElementById('riskIcon').className   = `risk-icon ${rl}`;
+  document.getElementById('riskIcon').textContent = icon;
+  document.getElementById('riskPct').className    = `risk-pct ${rl}`;
+  document.getElementById('riskPct').textContent  = `${pct}%`;
+  document.getElementById('riskLabel').className  = `risk-label ${rl}`;
+  document.getElementById('riskLabel').textContent = t(labelKey);
+  document.getElementById('riskBar').className    = `risk-bar ${rl}`;
+  setTimeout(()=>{ document.getElementById('riskBar').style.width = pct+'%'; }, 80);
+
+  // Dynamic medical message (urgency-based, not static)
+  document.getElementById('riskDesc').textContent = t(msgKey);
+
+  // eGFR badge + CKD stage
+  const egfr = res.egfr || estimateEgfr(payload.creatinine, payload.age, payload.sex);
+  const egfrClass = egfr>=60?'ok':egfr>=30?'warn':'bad';
+  const ckd = egfrCkdStage(egfr);
+  const badge = document.getElementById('egfrBadge');
+  badge.className = `egfr-badge ${egfrClass}`;
+  badge.innerHTML = `<span class="egfr-label">${t('result.egfr')} :</span> ${egfr} mL/min/1.73m² &nbsp;<span class="ckd-pill ${ckd.cls}">${ckd.label}</span>`;
+
+  // Score row: ML raw vs final
+  const mlPct = res._mlProb != null ? Math.round(res._mlProb*1000)/10 : pct;
+  document.getElementById('scoreRow').innerHTML = `
+    <div class="score-chip ml"><div class="sc-val">${mlPct}%</div><div class="sc-lbl">${t('result.ml_score')}</div></div>
+    <div class="score-chip egfr-chip"><div class="sc-val">${egfr}</div><div class="sc-lbl">${t('result.egfr')} mL/min</div></div>
+    <div class="score-chip final ${rl}"><div class="sc-val">${pct}%</div><div class="sc-lbl">${t(labelKey)}</div></div>`;
+
+  // Urgency banner
+  const urgencyIcons = {critical:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',urgent:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',moderate:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',normal:'<polyline points="20 6 9 17 4 12"/>'};
+  document.getElementById('urgencyBanner').className = `urgency-banner ${urgency}`;
+  document.getElementById('urgencyBanner').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${urgencyIcons[urgency]}</svg><span>${t(msgKey)}</span>`;
+
+  // Clinical flags
+  const flags = res.clinical_flags || [];
+  const flagsSection = document.getElementById('flagsSection');
+  if (flags.length) {
+    const flagsHtml = flags.map(f => {
+      const lbl = currentLang==='ar' ? (f.label_ar||f.label) : f.label;
+      return `<div class="flag-item ${f.severity}"><div class="flag-dot"></div><span>${lbl}</span></div>`;
+    }).join('');
+    flagsSection.innerHTML = `<div class="flags-title">⚠ ${t('result.flags_title')} (${flags.length})</div>${flagsHtml}`;
+    flagsSection.style.display = 'block';
+  } else {
+    flagsSection.style.display = 'none';
+  }
+
+  // Factors grid
+  const factors = res.factors || {};
+  const FACTOR_KEYS = ['creatinine','egfr','bp','hemoglobin','glucose','urea','albumin','protein','diabetes','sodium','potassium'];
+  const VALS = {
+    creatinine:`${payload.creatinine} mg/dL`,
+    egfr:`${egfr} mL/min`,
+    bp:`${payload.bp} mmHg`,
+    hemoglobin:`${payload.hemoglobin} g/dL`,
+    glucose:`${payload.glucose} mg/dL`,
+    urea:`${payload.urea} mg/dL`,
+    albumin:`${payload.albumin} g/dL`,
+    protein:t(payload.protein?'form.protein_pos':'form.protein_neg'),
+    diabetes:t(payload.diabetes?'common.yes':'common.no'),
+    sodium:`${payload.sodium} mEq/L`,
+    potassium:`${payload.potassium} mEq/L`,
+  };
+  document.getElementById('factorGrid').innerHTML = FACTOR_KEYS.map(k=>`
+    <div class="fitem">
+      <div class="fdot ${factors[k]||'ok'}"></div>
+      <div class="fitem-label">${t('factor.'+k)}</div>
+      <div class="fitem-val">${VALS[k]||'—'}</div>
+    </div>`).join('');
+
+  document.getElementById('resultCard').classList.add('show');
+}
+
+// ════════════════════════════════════════════════════════
+//  HISTORIQUE
+// ════════════════════════════════════════════════════════
+async function loadHistorique() {
+  let patients=[]; let stats={total:0,high:0,medium:0,low:0};
+  try {
+    const [sr,pr]=await Promise.all([afetch(`${FLASK}/stats`),afetch(`${FLASK}/patients`)]);
+    if(sr.ok){ const d=await sr.json(); if(d.success) stats=d; }
+    if(pr.ok){ const d=await pr.json(); if(d.success&&d.patients.length) patients=d.patients; }
+  } catch {}
+  if(!patients.length) patients=localLoad();
+  if(!stats.total)     stats=localStats();
+  allPatients=patients;
+  updateStats(stats);
+  renderTable(patients);
+}
+
+function updateStats(s) {
+  document.getElementById('stTotal').textContent =s.total;
+  document.getElementById('stHigh').textContent  =s.high;
+  document.getElementById('stMedium').textContent=s.medium;
+  document.getElementById('stLow').textContent   =s.low;
+}
+
+function riskBadge(rl) {
+  const label={low:t('badge.low'),medium:t('badge.medium'),high:t('badge.high')}[rl]||'—';
+  return `<span class="badge ${rl||'low'}">${label}</span>`;
+}
+
+function renderTable(rows) {
+  const wrap=document.getElementById('tableWrap');
+  if(!rows.length){
+    wrap.innerHTML=`<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>${t('common.no_patient')}</p></div>`;
+    return;
+  }
+  wrap.innerHTML=`<table>
+    <thead><tr>
+      <th>${t('hist.col_patient')}</th>
+      <th>${t('hist.col_age')}</th>
+      <th>${t('hist.col_creat')}</th>
+      <th>${t('hist.col_egfr')}</th>
+      <th>${t('hist.col_date')}</th>
+      <th>${t('hist.col_risk')}</th>
+      <th>${t('hist.col_score')}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${rows.map(p=>{
+      const egfrVal=p.egfr||'—';
+      return `<tr>
+        <td><strong>${p.prenom||''} ${p.nom||p.name||''}</strong></td>
+        <td>${p.age||'—'}</td>
+        <td>${p.creatinine!=null?(typeof p.creatinine==='number'?p.creatinine.toFixed(1):p.creatinine)+' mg/dL':'—'}</td>
+        <td>${typeof egfrVal==='number'?egfrVal+' mL/min':egfrVal}</td>
+        <td>${(p.predicted_at||p.date||'').toString().slice(0,10)}</td>
+        <td>${riskBadge(p.risk_level||p.risk)}</td>
+        <td><strong>${p.percentage!=null?(typeof p.percentage==='number'?p.percentage.toFixed(1):p.percentage)+'%':'—'}</strong></td>
+        <td><button class="open-btn" onclick='openDetail(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${t('common.open')}</button> <button class="open-btn" style="color:var(--rose);border-color:#FECDD3" onclick="deletePatient(${p.id})">${t('common.delete')}</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function filterTable() {
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  renderTable(allPatients.filter(p=>(p.nom||p.name||'').toLowerCase().includes(q)||(p.prenom||'').toLowerCase().includes(q)));
+}
+
+async function deletePatient(patientId) {
+  if (!confirm('Supprimer ce patient ? Cette action est irréversible.')) return;
+  try {
+    const r = await afetch(`${FLASK}/patients/${patientId}`, {method:'DELETE'});
+    const d = await r.json();
+    if (d.success) {
+      // Remove from local array and re-render without full reload
+      allPatients = allPatients.filter(p => p.id !== patientId);
+      renderTable(allPatients);
+      // Update stats counters
+      const total  = allPatients.length;
+      const high   = allPatients.filter(p=>p.risk_level==='high').length;
+      const medium = allPatients.filter(p=>p.risk_level==='medium').length;
+      const low    = allPatients.filter(p=>p.risk_level==='low').length;
+      updateStats({total, high, medium, low});
+    } else {
+      alert(d.error || 'Erreur lors de la suppression.');
+    }
+  } catch {
+    // Fallback: remove from localStorage only
+    let local = localLoad();
+    local = local.filter(p => p.id !== patientId);
+    localSave(local);
+    allPatients = allPatients.filter(p => p.id !== patientId);
+    renderTable(allPatients);
+    const total  = allPatients.length;
+    const high   = allPatients.filter(p=>p.risk_level==='high').length;
+    const medium = allPatients.filter(p=>p.risk_level==='medium').length;
+    const low    = allPatients.filter(p=>p.risk_level==='low').length;
+    updateStats({total, high, medium, low});
+  }
+}
+
+
+// ════════════════════════════════════════════════════════
+//  PROFIL MÉDECIN
+// ════════════════════════════════════════════════════════
+let profileData = {};
+let profileEditMode = false;
+
+async function openProfileModal() {
+  profileEditMode = false;
+  document.getElementById('profileModalTitle').textContent = 'Profil Médecin';
+  document.getElementById('profileModalBody').innerHTML =
+    `<div class="empty-state"><p>${t('common.loading')}</p></div>`;
+  openModal('profileModal');
+
+  try {
+    const r = await afetch(`${FLASK}/profile`);
+    const d = await r.json();
+    if (d.success) {
+      profileData = d.profile;
+    } else {
+      // Fallback: use currentUser data
+      profileData = { ...currentUser };
+    }
+  } catch {
+    profileData = { ...currentUser };
+  }
+  renderProfileModal(false);
+}
+
+function renderProfileModal(editMode) {
+  profileEditMode = editMode;
+  const p = profileData;
+  const initials = ((p.prenom||'?')[0] + (p.nom||'?')[0]).toUpperCase();
+  const avatarHtml = p.photo_base64
+    ? `<img src="${p.photo_base64}" alt="photo"/>`
+    : `<span style="pointer-events:none">${initials}</span>`;
+
+  const field = (label, key, unit='', type='text', fullWidth=false) => {
+    const val = p[key] != null && p[key] !== '' ? p[key] : null;
+    if (editMode) {
+      return `<div class="profile-field${fullWidth?' full':''}">
+        <label>${label}</label>
+        <input type="${type}" id="pf_${key}" value="${val||''}" placeholder="—"/>
+      </div>`;
+    }
+    return `<div class="profile-field${fullWidth?' full':''}">
+      <label>${label}</label>
+      <div class="pval${val?'':' empty'}">${val ? val+(unit?' '+unit:'') : '—'}</div>
+    </div>`;
+  };
+
+  const wilayas = ['Adrar','Chlef','Laghouat','Oum El Bouaghi','Batna','Béjaïa','Biskra','Béchar','Blida','Bouira','Tamanrasset','Tébessa','Tlemcen','Tiaret','Tizi Ouzou','Alger','Djelfa','Jijel','Sétif','Saïda','Skikda','Sidi Bel Abbès','Annaba','Guelma','Constantine','Médéa','Mostaganem','MSila','Mascara','Ouargla','Oran','El Bayadh','Illizi','Bordj Bou Arréridj','Boumerdès','El Tarf','Tindouf','Tissemsilt','El Oued','Khenchela','Souk Ahras','Tipaza','Mila','Aïn Defla','Naâma','Aïn Témouchent','Ghardaïa','Relizane','Timimoun','Bordj Badji Mokhtar','Ouled Djellal','Béni Abbès','In Salah','In Guezzam','Touggourt','Djanet','El MGhair','El Menia'];
+  const wilayas_opts = wilayas.map(w => `<option value="${w}"${p.wilaya===w?' selected':''}>${w}</option>`).join('');
+
+  const wilayas_field = editMode
+    ? `<div class="profile-field"><label>Wilaya</label><select id="pf_wilaya" style="width:100%;background:transparent;border:none;font-size:.88rem;font-weight:600;color:var(--text);font-family:inherit;outline:none;padding:0"><option value="">—</option>${wilayas_opts}</select></div>`
+    : field('Wilaya','wilaya');
+
+  const created = p.created_at ? p.created_at.toString().slice(0,10) : '—';
+
+  document.getElementById('profileModalTitle').textContent = editMode ? 'Modifier le profil' : 'Profil Médecin';
+  document.getElementById('profileModalBody').innerHTML = `
+    <div class="${editMode?'profile-edit-mode':''}">
+      <div class="profile-avatar-wrap">
+        <div class="profile-avatar" id="profileAvatarEl">${avatarHtml}</div>
+        ${editMode ? `<div class="avatar-edit-btn" onclick="document.getElementById('avatarFileInput').click()" title="Changer la photo">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)"/>` : ''}
+      </div>
+      <div class="profile-name">
+        <h2>${(p.prenom||'')+' '+(p.nom||'')}</h2>
+        <span class="profile-role">🩺 Médecin</span>
+      </div>
+      <div class="profile-info-grid">
+        ${field('Nom','nom')}
+        ${field('Prénom','prenom')}
+        ${field('Email','email','','email')}
+        ${field('Téléphone','phone','','tel')}
+        ${wilayas_field}
+        ${field('Ville','ville')}
+        ${field('Établissement','etablissement','','text',false)}
+        ${field('Spécialité','specialite')}
+        ${field('Fonction actuelle','fonction','','text',true)}
+      </div>
+      <div class="profile-created">📅 Compte créé le ${created}</div>
+      <div class="modal-actions" style="margin-top:1.25rem">
+        ${editMode
+          ? `<button class="btn-primary" onclick="saveProfile()">💾 Enregistrer</button>
+             <button class="btn-secondary" onclick="renderProfileModal(false)">Annuler</button>`
+          : `<button class="btn-primary" onclick="renderProfileModal(true)">✏️ Modifier le profil</button>
+             <button class="btn-secondary" onclick="closeModal('profileModal')">Fermer</button>`
+        }
+      </div>
+      <div id="profileMsg" style="margin-top:.6rem;font-size:.8rem;text-align:center"></div>
+    </div>`;
+}
+
+function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 500*1024) {
+    document.getElementById('profileMsg').innerHTML = '<span style="color:var(--rose)">Image trop lourde (max 500 Ko)</span>';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    profileData.photo_base64 = e.target.result;
+    const el = document.getElementById('profileAvatarEl');
+    if (el) el.innerHTML = `<img src="${e.target.result}" alt="photo"/>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveProfile() {
+  const fields = ['nom','prenom','email','phone','wilaya','ville','etablissement','specialite','fonction'];
+  const payload = {};
+  for (const k of fields) {
+    const el = document.getElementById('pf_'+k);
+    if (el) payload[k] = el.value.trim();
+  }
+  if (profileData.photo_base64 && profileData.photo_base64.startsWith('data:')) {
+    payload.photo_base64 = profileData.photo_base64;
+  }
+  const msgEl = document.getElementById('profileMsg');
+  try {
+    const r = await afetch(`${FLASK}/profile`, {method:'PUT', body: JSON.stringify(payload)});
+    const d = await r.json();
+    if (d.success) {
+      profileData = { ...profileData, ...payload };
+      // Mise à jour du chip dans la topbar
+      if (payload.nom || payload.prenom) {
+        const prenom = payload.prenom || currentUser.prenom || '';
+        const nom    = payload.nom    || currentUser.nom    || '';
+        document.getElementById('userChipText').textContent = `${prenom} ${nom}`.trim();
+        currentUser.nom    = nom;
+        currentUser.prenom = prenom;
+      }
+      renderProfileModal(false);
+      if (msgEl) msgEl.innerHTML = '<span style="color:var(--emerald)">✓ Profil mis à jour</span>';
+    } else {
+      if (msgEl) msgEl.innerHTML = `<span style="color:var(--rose)">${d.error||'Erreur'}</span>`;
+    }
+  } catch {
+    try {
+      // Fallback local si Flask indisponible
+      profileData = { ...profileData, ...payload };
+      currentUser = { ...currentUser, ...payload };
+      document.getElementById('userChipText').textContent = `${payload.prenom||currentUser.prenom} ${payload.nom||currentUser.nom}`.trim();
+      renderProfileModal(false);
+      if (msgEl) msgEl.innerHTML = '<span style="color:var(--yellow-500)">⚠ Sauvegardé localement (serveur indisponible)</span>';
+    } catch {}
+  }
+}
+
+async function openDetail(p) {
+  const name=`${p.prenom||''} ${p.nom||p.name||''}`.trim();
+  document.getElementById('detailModalTitle').textContent=name||t('modal.patient_file');
+  document.getElementById('detailModalBody').innerHTML=`<div class="empty-state"><p>${t('common.loading')}</p></div>`;
+  openModal('detailModal');
+
+  // Tenter de récupérer les données complètes via l'API
+  let fullData = p; // fallback sur les données déjà disponibles
+  if (p.id) {
+    try {
+      const r = await afetch(`${FLASK}/patients/${p.id}`);
+      const d = await r.json();
+      if (d.success && d.predictions && d.predictions.length > 0) {
+        // Fusionner données patient + dernière prédiction
+        const lastPred = d.predictions[0];
+        fullData = { ...d.patient, ...lastPred,
+          creatinine: lastPred.baseline_creatinine,
+          nom: d.patient.nom, prenom: d.patient.prenom,
+          age: d.patient.age, gender: d.patient.gender
+        };
+      }
+    } catch(e) { /* utiliser les données locales */ }
+  }
+
+  const rl  = fullData.risk_level || fullData.risk || 'low';
+  const pct = fullData.percentage != null ? (typeof fullData.percentage==='number' ? fullData.percentage.toFixed(1) : fullData.percentage) : '—';
+  const egfr = fullData.egfr || '—';
+
+  // Helpers
+  const fmt = (v, unit, dec=1) => v != null && v !== '' ? (typeof v==='number' ? v.toFixed(dec) : v) + ' ' + unit : '—';
+  const fmtYN = v => v != null && v !== '' ? v : '—';
+  const item = (label, val) => `<div class="detail-item"><div class="dk">${label}</div><div class="dv">${val}</div></div>`;
+
+  const labSection = [
+    item(t('factor.creatinine'),   fmt(fullData.creatinine ?? fullData.baseline_creatinine, 'mg/dL')),
+    item('Créat. moyenne',          fmt(fullData.mean_creatinine, 'mg/dL')),
+    item(t('factor.hemoglobin'),   fmt(fullData.hemoglobin, 'g/dL')),
+    item(t('factor.glucose'),      fmt(fullData.glucose, 'mg/dL', 0)),
+    item(t('factor.albumin'),      fmt(fullData.albumin, 'g/dL')),
+    item('HbA1c',                   fmt(fullData.hba1c, '%')),
+    item('Cholestérol',             fmt(fullData.cholesterol, 'mg/dL', 0)),
+    item('Triglycérides',           fmt(fullData.triglyceride, 'mg/dL', 0)),
+    item('LDL-C',                   fmt(fullData.ldl_c, 'mg/dL', 0)),
+    item('HDL-C',                   fmt(fullData.hdl_c, 'mg/dL', 0)),
+    item('Acide urique',            fmt(fullData.uric_acid, 'mg/dL')),
+    item('Calcium',                 fmt(fullData.calcium, 'mg/dL')),
+    item('Phosphate',               fmt(fullData.phosphate, 'mg/dL')),
+    item('HS-CRP',                  fmt(fullData.hs_crp, 'mg/dL')),
+  ].join('');
+
+  const clinSection = [
+    item(t('factor.sodium'),       fmtYN(fullData.sodium) !== '—' ? fmt(fullData.sodium, 'mEq/L', 0) : '—'),
+    item(t('factor.potassium'),    fmtYN(fullData.potassium) !== '—' ? fmt(fullData.potassium, 'mEq/L', 1) : '—'),
+    item('Hypertension',            fmtYN(fullData.hypertension)),
+    item('Rétinopathie diab.',      fmtYN(fullData.diabetic_retinopathy)),
+    item('Coronaropathie',          fmtYN(fullData.coronary_artery_disease)),
+    item('Cancer',                  fmtYN(fullData.cancer)),
+    item('Hépatopathie chron.',     fmtYN(fullData.chronic_liver_disease)),
+    item('Tabac',                   fmtYN(fullData.smoking)),
+    item('Alcool',                  fmtYN(fullData.alcohol)),
+  ].join('');
+
+  const medSection = [
+    item('NSAID',         fmtYN(fullData.nsaid)),
+    item('Statine',       fmtYN(fullData.statin)),
+    item('Metformine',    fmtYN(fullData.metformin)),
+    item('Insuline',      fmtYN(fullData.insulin)),
+    item('iDPP-4',        fmtYN(fullData.dpp4_inhibitor)),
+  ].join('');
+
+  document.getElementById('detailModalBody').innerHTML=`
+    <div class="modal-risk ${rl}">
+      <div class="modal-pct ${rl}">${pct}%</div>
+      ${riskBadge(rl)}
+      ${egfr!=='—'?`<div class="egfr-badge ${egfr>=60?'ok':egfr>=30?'warn':'bad'}" style="margin:.75rem auto 0;width:fit-content"><span class="egfr-label">${t('result.egfr')} :</span> ${egfr} mL/min</div>`:''}
+      <p style="font-size:.8rem;color:var(--muted);margin-top:.75rem">${t({low:'result.low_desc',medium:'result.med_desc',high:'result.high_desc'}[rl]||'result.low_desc')}</p>
+    </div>
+
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:.25rem 0 .5rem">
+      🧪 Bilan biologique
+    </div>
+    <div class="detail-grid">${labSection}</div>
+
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:.5rem 0 .5rem">
+      🩺 Antécédents & facteurs cliniques
+    </div>
+    <div class="detail-grid">${clinSection}</div>
+
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:.5rem 0 .5rem">
+      💊 Traitements
+    </div>
+    <div class="detail-grid">${medSection}</div>
+
+    <div style="font-size:.75rem;color:var(--light);text-align:center;margin-top:.75rem">
+      📅 ${(fullData.predicted_at||'').toString().slice(0,16)} · ${t('detail.date_age')} : ${fullData.age||'—'} ans · ${fullData.gender||''}
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════
+//  COMPTES
+// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+//  GESTION DES COMPTES — version complète
+// ════════════════════════════════════════════════════════
+let allAccounts = [];   // cache pour la recherche
+
+async function loadAccounts() {
+  // Afficher le bouton "Changer mot de passe" (médecin connecté)
+  const btnPwd = document.getElementById('btnChangePwd');
+  if (btnPwd) btnPwd.style.display = '';
+
+  const wrap = document.getElementById('accountsList');
+  wrap.innerHTML = `<div class="empty-state"><p>${t('common.loading')}</p></div>`;
+
+  try {
+    const r = await afetch(`${FLASK}/accounts`);
+    const d = await r.json();
+    if (d.success) {
+      allAccounts = d.accounts || [];
+      renderAccountStats(allAccounts);
+      renderAccountsList(allAccounts);
+      return;
+    }
+  } catch {}
+  allAccounts = [];
+  renderAccountStats([]);
+  wrap.innerHTML = `<div class="empty-state"><p>${t('common.no_account')}</p></div>`;
+}
+
+function renderAccountStats(accounts) {
+  const el = document.getElementById('accountsStats');
+  if (!el) return;
+  const total   = accounts.length;
+  // On ne connait pas le risque ici (liste simple), on affiche juste les comptes
+  el.innerHTML = `
+    <div class="acc-stat">
+      <div class="acc-stat-icon" style="background:#EFF6FF">👥</div>
+      <div><div class="acc-stat-val">${total}</div><div class="acc-stat-lbl">Comptes patients</div></div>
+    </div>
+    <div class="acc-stat">
+      <div class="acc-stat-icon" style="background:#F0FDF4">✓</div>
+      <div><div class="acc-stat-val">${total}</div><div class="acc-stat-lbl">Comptes actifs</div></div>
+    </div>
+    <div class="acc-stat">
+      <div class="acc-stat-icon" style="background:#FFFBEB">🔑</div>
+      <div><div class="acc-stat-val" style="font-size:1rem;padding-top:2px">Mot de passe</div><div class="acc-stat-lbl"><a href="#" onclick="openChangePwdModal();return false" style="color:var(--blue);text-decoration:none;font-weight:600">Modifier le mien →</a></div></div>
+    </div>`;
+}
+
+function renderAccountsList(accounts) {
+  const wrap = document.getElementById('accountsList');
+  if (!accounts.length) {
+    wrap.innerHTML = `<div class="empty-state"><p>${t('common.no_account')}</p></div>`;
+    return;
+  }
+  wrap.innerHTML = accounts.map(a => {
+    const initials = ((a.prenom||'?')[0]+(a.nom||a.username||'?')[0]).toUpperCase();
+    const created  = (a.created_at||'').toString().slice(0,10);
+    return `<div class="acc-row" id="acc-row-${a.id}">
+      <div class="acc-avatar">${initials}</div>
+      <div class="acc-info">
+        <div class="acc-name">${a.prenom||''} ${a.nom||a.username}</div>
+        <div class="acc-meta">@${a.username}${a.email?' · '+a.email:''} · Inscrit le ${created}</div>
+      </div>
+      <div class="acc-actions">
+        <button class="acc-btn" onclick="openEditAccount(${a.id})">✏️ Modifier</button>
+        <button class="acc-btn danger" onclick="confirmDeleteAccount(${a.id},'${(a.prenom||'') + ' ' + (a.nom||a.username||'')}')">🗑 Supprimer</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterAccounts() {
+  const q = (document.getElementById('accountSearch').value || '').toLowerCase();
+  if (!q) { renderAccountsList(allAccounts); return; }
+  renderAccountsList(allAccounts.filter(a =>
+    (a.nom||'').toLowerCase().includes(q) ||
+    (a.prenom||'').toLowerCase().includes(q) ||
+    (a.username||'').toLowerCase().includes(q) ||
+    (a.email||'').toLowerCase().includes(q)
+  ));
+}
+
+// ── Modification compte patient ───────────────────────────────
+function openEditAccount(id) {
+  const a = allAccounts.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('editAccountId').value   = a.id;
+  document.getElementById('editPrenom').value       = a.prenom   || '';
+  document.getElementById('editNom').value          = a.nom      || '';
+  document.getElementById('editEmail').value        = a.email    || '';
+  document.getElementById('editNewPwd').value       = '';
+  document.getElementById('editConfirmPwd').value   = '';
+  document.getElementById('editAccountMsg').innerHTML = '';
+  document.getElementById('editAccountTitle').textContent =
+    'Modifier · ' + (a.prenom||'') + ' ' + (a.nom||a.username||'');
+  openModal('editAccountModal');
+}
+
+async function saveAccountEdit() {
+  const id      = parseInt(document.getElementById('editAccountId').value);
+  const prenom  = document.getElementById('editPrenom').value.trim();
+  const nom     = document.getElementById('editNom').value.trim();
+  const email   = document.getElementById('editEmail').value.trim();
+  const newPwd  = document.getElementById('editNewPwd').value;
+  const confirm = document.getElementById('editConfirmPwd').value;
+  const msgEl   = document.getElementById('editAccountMsg');
+
+  if (newPwd && newPwd !== confirm) {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Les mots de passe ne correspondent pas.</span>';
+    return;
+  }
+  if (newPwd && newPwd.length < 6) {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Mot de passe trop court (6 caractères min.).</span>';
+    return;
+  }
+
+  const payload = { nom, prenom, email };
+  if (newPwd) payload.new_password = newPwd;
+
+  try {
+    const r = await afetch(`${FLASK}/accounts/${id}`, {method:'PUT', body:JSON.stringify(payload)});
+    const d = await r.json();
+    if (d.success) {
+      // Mettre à jour le cache local
+      const idx = allAccounts.findIndex(x => x.id === id);
+      if (idx >= 0) allAccounts[idx] = { ...allAccounts[idx], nom, prenom, email };
+      closeModal('editAccountModal');
+      renderAccountsList(allAccounts);
+    } else {
+      msgEl.innerHTML = `<span style="color:var(--rose)">${d.error||'Erreur serveur'}</span>`;
+    }
+  } catch {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Impossible de contacter le serveur.</span>';
+  }
+}
+
+// ── Suppression compte patient avec confirmation inline ───────
+let pendingDeleteId = null;
+
+function confirmDeleteAccount(id, name) {
+  // Si une confirmation est déjà ouverte, la fermer
+  if (pendingDeleteId !== null) cancelDeleteAccount();
+
+  pendingDeleteId = id;
+  const row = document.getElementById('acc-row-' + id);
+  if (!row) return;
+
+  const confirmRow = document.createElement('div');
+  confirmRow.className = 'acc-confirm-row';
+  confirmRow.id = 'acc-confirm-' + id;
+  confirmRow.innerHTML = `
+    <div class="acc-confirm-text">
+      ⚠️ Supprimer le compte de <strong>${name}</strong> ? Toutes les données seront effacées définitivement.
+    </div>
+    <div style="display:flex;gap:.5rem;flex-shrink:0">
+      <button class="acc-btn danger" onclick="executeDeleteAccount(${id})">Confirmer</button>
+      <button class="acc-btn" onclick="cancelDeleteAccount()">Annuler</button>
+    </div>`;
+  row.insertAdjacentElement('afterend', confirmRow);
+}
+
+function cancelDeleteAccount() {
+  if (pendingDeleteId !== null) {
+    const el = document.getElementById('acc-confirm-' + pendingDeleteId);
+    if (el) el.remove();
+    pendingDeleteId = null;
+  }
+}
+
+async function executeDeleteAccount(id) {
+  try {
+    const r = await afetch(`${FLASK}/accounts/${id}`, {method:'DELETE'});
+    const d = await r.json();
+    if (d.success) {
+      allAccounts = allAccounts.filter(a => a.id !== id);
+      pendingDeleteId = null;
+      renderAccountStats(allAccounts);
+      renderAccountsList(allAccounts);
+      return;
+    }
+    alert(d.error || 'Erreur lors de la suppression.');
+  } catch {
+    // Fallback : suppression locale uniquement
+    allAccounts = allAccounts.filter(a => a.id !== id);
+    pendingDeleteId = null;
+    renderAccountStats(allAccounts);
+    renderAccountsList(allAccounts);
+  }
+}
+
+// ── Changement mot de passe médecin ──────────────────────────
+function openChangePwdModal() {
+  ['oldPwd','newPwd1','newPwd2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('changePwdMsg').innerHTML = '';
+  openModal('changePwdModal');
+}
+
+async function doChangePwd() {
+  const old_pw = document.getElementById('oldPwd').value;
+  const new1   = document.getElementById('newPwd1').value;
+  const new2   = document.getElementById('newPwd2').value;
+  const msgEl  = document.getElementById('changePwdMsg');
+
+  if (!old_pw || !new1) {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Veuillez remplir tous les champs.</span>';
+    return;
+  }
+  if (new1 !== new2) {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Les nouveaux mots de passe ne correspondent pas.</span>';
+    return;
+  }
+  if (new1.length < 6) {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Nouveau mot de passe trop court (6 caractères min.).</span>';
+    return;
+  }
+
+  try {
+    const r = await afetch(`${FLASK}/change-password`, {
+      method: 'POST',
+      body: JSON.stringify({ old_password: old_pw, new_password: new1 })
+    });
+    const d = await r.json();
+    if (d.success) {
+      msgEl.innerHTML = '<span style="color:var(--emerald)">✓ Mot de passe modifié avec succès !</span>';
+      setTimeout(() => closeModal('changePwdModal'), 1500);
+    } else {
+      msgEl.innerHTML = `<span style="color:var(--rose)">${d.error||'Erreur serveur'}</span>`;
+    }
+  } catch {
+    msgEl.innerHTML = '<span style="color:var(--rose)">Impossible de contacter le serveur.</span>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  MES RÉSULTATS
+// ════════════════════════════════════════════════════════
+async function loadMyResults() {
+  const wrap=document.getElementById('myResultsWrap');
+  wrap.innerHTML=`<div class="empty-state"><p>${t('common.loading')}</p></div>`;
+  let results=[];
+  try {
+    const r=await afetch(`${FLASK}/my-results`);
+    const d=await r.json();
+    if(d.success) results=d.results; else throw new Error();
+  } catch {
+    results=localLoad().filter(p=>currentUser&&(p.username===currentUser.username||(p.nom===currentUser.nom&&p.prenom===currentUser.prenom)));
+  }
+  if(!results.length){
+    wrap.innerHTML=`<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>${t('common.no_result')}</p></div>`;
+    return;
+  }
+  const colors={low:'#065F46',medium:'#92400E',high:'#9F1239'};
+  wrap.innerHTML='<div style="display:flex;flex-direction:column;gap:.875rem">'+results.map(r=>{
+    const rl=r.risk_level||'low';
+    const pct=r.percentage!=null?(typeof r.percentage==='number'?r.percentage.toFixed(1):r.percentage)+'%':'—';
+    const egfr=r.egfr;
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;display:flex;align-items:center;gap:1.25rem;box-shadow:var(--shadow-sm)">
+      <div style="font-size:2.2rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:${colors[rl]};min-width:64px;text-align:center">${pct}</div>
+      <div style="flex:1">
+        ${riskBadge(rl)}
+        ${egfr?`<div class="egfr-badge ${egfr>=60?'ok':egfr>=30?'warn':'bad'}" style="margin:.4rem 0 0;width:fit-content;font-size:.72rem"><span class="egfr-label">${t('result.egfr')} :</span> ${egfr} mL/min</div>`:''}
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.4rem">${t('factor.creatinine')}: ${r.creatinine||'—'} mg/dL · ${t('factor.urea')}: ${r.urea||'—'} mg/dL · Hb: ${r.hemoglobin||'—'} g/dL</div>
+        <div style="font-size:.74rem;color:var(--light);margin-top:.25rem">📅 ${(r.predicted_at||'').toString().slice(0,16)}</div>
+      </div>
+    </div>`;
+  }).join('')+'</div>';
+}
+
+// ════════════════════════════════════════════════════════
+//  MODAL helpers
+// ════════════════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click',e=>{ if(e.target===o) o.classList.add('hidden'); });
+});
+</script>
+
+<!-- ════════════════════════════════════════════════════════
+     PRICING SECTION — styles + logic
+     ════════════════════════════════════════════════════════ -->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── Page wrapper ── */
+#pricing-inner {
+  background: #05080f;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+#pricing-inner::before {
+  content:'';
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 70% 45% at 15% 10%, rgba(56,189,248,.07) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 40% at 85% 85%, rgba(16,185,129,.06) 0%, transparent 60%);
+}
+
+/* ── Section ── */
+#pricing-section {
+  padding: 80px 24px 100px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  position: relative;
+}
+
+/* ── Header ── */
+.pricing-eyebrow {
+  text-align:center;font-size:.74rem;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;
+  color:#38bdf8;margin-bottom:14px;
+}
+.pricing-headline {
+  font-family:'DM Serif Display', Georgia, serif;
+  font-size:clamp(1.9rem,4vw,2.9rem);
+  color:#f1f5f9;text-align:center;
+  margin:0 0 14px;line-height:1.15;
+}
+.pricing-headline em { font-style:italic;color:#38bdf8; }
+.pricing-sub {
+  text-align:center;color:#64748b;font-size:.95rem;
+  max-width:500px;margin:0 auto 56px;line-height:1.65;
+}
+
+/* ── Grid ── */
+.pricing-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(270px,1fr));
+  gap:22px;max-width:1020px;margin:0 auto 64px;align-items:start;
+}
+
+/* ── Card ── */
+.plan-card {
+  background:#111827;border:1px solid rgba(99,179,237,.12);
+  border-radius:18px;padding:34px 28px 28px;
+  position:relative;
+  transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;
+  display:flex;flex-direction:column;
+}
+.plan-card:hover {
+  transform:translateY(-6px);
+  box-shadow:0 24px 60px rgba(0,0,0,.45);
+  border-color:rgba(99,179,237,.28);
+}
+.plan-card.featured {
+  border-color:#0ea5e9;
+  background:linear-gradient(160deg,#0f1e33 0%,#0c1220 100%);
+  box-shadow:0 0 0 1px #0ea5e9, 0 28px 70px rgba(14,165,233,.18);
+}
+.plan-card.featured:hover {
+  box-shadow:0 0 0 1px #38bdf8, 0 34px 80px rgba(14,165,233,.28);
+  border-color:#38bdf8;
+}
+.plan-badge {
+  position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(90deg,#0ea5e9,#38bdf8);
+  color:#fff;font-size:.69rem;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;
+  padding:5px 18px;border-radius:99px;white-space:nowrap;
+}
+.plan-icon {
+  width:44px;height:44px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.3rem;margin-bottom:18px;
+}
+.plan-icon.free-icon         { background:rgba(100,116,139,.15); }
+.plan-icon.professional-icon { background:rgba(14,165,233,.15); }
+.plan-icon.clinic-icon       { background:rgba(245,158,11,.13); }
+.plan-name   { font-size:1rem;font-weight:700;color:#e2e8f0;margin-bottom:5px; }
+.plan-tagline{ font-size:.8rem;color:#64748b;margin-bottom:22px;line-height:1.5; }
+
+.plan-price-wrap { display:flex;align-items:flex-end;gap:4px;margin-bottom:24px; }
+.plan-price-amount {
+  font-family:'DM Serif Display',Georgia,serif;
+  font-size:2.65rem;color:#f1f5f9;line-height:1;
+}
+.plan-card.featured     .plan-price-amount { color:#38bdf8; }
+.plan-card.clinic-card  .plan-price-amount { color:#f59e0b; }
+.plan-price-currency,.plan-price-period { font-size:.82rem;color:#64748b;padding-bottom:6px; }
+
+.plan-features { list-style:none;padding:0;margin:0 0 28px;flex:1; }
+.plan-features li {
+  display:flex;align-items:flex-start;gap:9px;
+  font-size:.845rem;color:#94a3b8;
+  padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);line-height:1.5;
+}
+.plan-features li:last-child { border-bottom:none; }
+.chk {
+  width:16px;height:16px;border-radius:50%;flex-shrink:0;
+  margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:.62rem;
+}
+.plan-card:first-child .chk  { background:rgba(100,116,139,.22);color:#94a3b8; }
+.plan-card.featured    .chk  { background:rgba(14,165,233,.2); color:#38bdf8; }
+.plan-card.clinic-card .chk  { background:rgba(245,158,11,.18);color:#f59e0b; }
+
+/* ── Buttons ── */
+.plan-btn {
+  width:100%;padding:12px;border-radius:10px;border:none;
+  font-family:'DM Sans',system-ui,sans-serif;
+  font-size:.88rem;font-weight:700;cursor:pointer;
+  transition:opacity .2s,transform .15s;letter-spacing:.02em;
+}
+.plan-btn:hover  { opacity:.87;transform:translateY(-1px); }
+.plan-btn:active { transform:translateY(0); }
+.plan-btn.free-btn {
+  background:rgba(100,116,139,.18);color:#94a3b8;
+  border:1px solid rgba(100,116,139,.3);
+}
+.plan-btn.pro-btn {
+  background:linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%);
+  color:#fff;box-shadow:0 6px 22px rgba(14,165,233,.3);
+}
+.plan-btn.clinic-btn {
+  background:linear-gradient(135deg,#d97706 0%,#f59e0b 100%);
+  color:#1c1008;box-shadow:0 6px 22px rgba(245,158,11,.25);
+}
+
+/* ── Social proof ── */
+.pricing-proof {
+  max-width:680px;margin:0 auto;
+  display:flex;flex-wrap:wrap;justify-content:center;gap:36px;
+}
+.proof-item   { text-align:center; }
+.proof-num    { font-family:'DM Serif Display',Georgia,serif;font-size:1.9rem;color:#38bdf8;display:block;line-height:1;margin-bottom:4px; }
+.proof-label  { font-size:.74rem;color:#64748b;text-transform:uppercase;letter-spacing:.1em; }
+
+/* ── Modal overlay ── */
+#pricing-modal-overlay {
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(6px);
+  z-index:9999;align-items:center;justify-content:center;padding:20px;
+}
+#pricing-modal-overlay.open { display:flex; }
+
+.pricing-modal {
+  background:#111827;border:1px solid rgba(99,179,237,.15);
+  border-radius:20px;padding:38px 34px 34px;
+  width:100%;max-width:450px;position:relative;
+  animation:pmIn .28s ease;
+  font-family:'DM Sans',system-ui,sans-serif;
+}
+@keyframes pmIn { from{opacity:0;transform:scale(.94) translateY(12px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+.pm-close {
+  position:absolute;top:14px;right:18px;
+  background:none;border:none;color:#64748b;
+  font-size:1.35rem;cursor:pointer;line-height:1;transition:color .15s;
+}
+.pm-close:hover { color:#e2e8f0; }
+.pm-plan-tag {
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(14,165,233,.12);color:#38bdf8;
+  border-radius:99px;padding:4px 14px;
+  font-size:.72rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:14px;
+}
+.pm-title    { font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;color:#f1f5f9;margin:0 0 7px; }
+.pm-subtitle { font-size:.82rem;color:#64748b;margin:0 0 26px;line-height:1.55; }
+
+/* Form */
+.pf-row   { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.pf-group { display:flex;flex-direction:column;gap:5px;margin-bottom:12px; }
+.pf-group label {
+  font-size:.75rem;font-weight:600;color:#94a3b8;letter-spacing:.04em;
+}
+.pf-group input,
+.pf-group select {
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);
+  border-radius:9px;padding:10px 13px;color:#e2e8f0;
+  font-family:'DM Sans',system-ui,sans-serif;font-size:.85rem;outline:none;
+  transition:border-color .2s;
+}
+.pf-group input::placeholder { color:#475569; }
+.pf-group input:focus,
+.pf-group select:focus { border-color:#0ea5e9;background:rgba(14,165,233,.06); }
+.pf-group select option { background:#111827; }
+
+.pm-submit {
+  width:100%;padding:13px;border-radius:10px;border:none;
+  font-family:'DM Sans',system-ui,sans-serif;
+  font-size:.92rem;font-weight:700;cursor:pointer;margin-top:4px;
+  transition:opacity .2s,transform .15s;
+}
+.pm-submit:hover  { opacity:.87;transform:translateY(-1px); }
+.pm-submit:active { transform:translateY(0); }
+.pm-submit.pro-btn    { background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 6px 22px rgba(14,165,233,.3); }
+.pm-submit.free-btn   { background:rgba(100,116,139,.22);color:#94a3b8;border:1px solid rgba(100,116,139,.3); }
+.pm-submit.clinic-btn { background:linear-gradient(135deg,#d97706,#f59e0b);color:#1c1008;box-shadow:0 6px 22px rgba(245,158,11,.25); }
+.pm-submit:disabled   { opacity:.5;cursor:not-allowed;transform:none; }
+
+/* Feedback */
+.pm-feedback { display:none;border-radius:10px;padding:12px 15px;font-size:.83rem;margin-bottom:14px;line-height:1.5; }
+.pm-feedback.success { display:block;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#6ee7b7; }
+.pm-feedback.error   { display:block;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#fca5a5; }
+
+@media(max-width:500px){
+  .pricing-modal,.pricing-modal{ padding:28px 18px 24px; }
+  .pf-row { grid-template-columns:1fr; }
+  .pricing-grid { gap:16px; }
+}
+</style>
+
+<!-- ── Pricing modal DOM ── -->
+<div id="pricing-modal-overlay" role="dialog" aria-modal="true">
+  <div class="pricing-modal">
+    <button class="pm-close" id="pm-close-btn" aria-label="Fermer">&#x2715;</button>
+    <div class="pm-plan-tag" id="pm-plan-tag">⬡ Plan</div>
+    <h3 class="pm-title" id="pm-title">Commencer votre abonnement</h3>
+    <p class="pm-subtitle">Remplissez le formulaire — notre équipe vous contacte sous 24 h pour activer votre accès.</p>
+    <div class="pm-feedback" id="pm-feedback"></div>
+    <form id="pm-form" novalidate>
+      <input type="hidden" id="pm-plan-input">
+      <div class="pf-row">
+        <div class="pf-group">
+          <label>Nom complet *</label>
+          <input type="text" id="pm-fname" placeholder="Dr. Amrani Mohamed" required>
+        </div>
+        <div class="pf-group">
+          <label>Email professionnel *</label>
+          <input type="email" id="pm-email" placeholder="contact@clinique.dz" required>
+        </div>
+      </div>
+      <div class="pf-row">
+        <div class="pf-group">
+          <label>Téléphone</label>
+          <input type="tel" id="pm-phone" placeholder="+213 6xx xxx xxx">
+        </div>
+        <div class="pf-group">
+          <label>Wilaya</label>
+          <select id="pm-wilaya">
+            <option value="">Sélectionner…</option>
+            <option>Adrar</option><option>Chlef</option><option>Laghouat</option>
+            <option>Oum El Bouaghi</option><option>Batna</option><option>Béjaïa</option>
+            <option>Biskra</option><option>Béchar</option><option>Blida</option>
+            <option>Bouira</option><option>Tamanrasset</option><option>Tébessa</option>
+            <option>Tlemcen</option><option>Tiaret</option><option>Tizi Ouzou</option>
+            <option>Alger</option><option>Djelfa</option><option>Jijel</option>
+            <option>Sétif</option><option>Saïda</option><option>Skikda</option>
+            <option>Sidi Bel Abbès</option><option>Annaba</option><option>Guelma</option>
+            <option>Constantine</option><option>Médéa</option><option>Mostaganem</option>
+            <option>M'Sila</option><option>Mascara</option><option>Ouargla</option>
+            <option>Oran</option><option>El Bayadh</option><option>Illizi</option>
+            <option>Bordj Bou Arréridj</option><option>Boumerdès</option>
+            <option>El Tarf</option><option>Tindouf</option><option>Tissemsilt</option>
+            <option>El Oued</option><option>Khenchela</option><option>Souk Ahras</option>
+            <option>Tipaza</option><option>Mila</option><option>Aïn Defla</option>
+            <option>Naâma</option><option>Aïn Témouchent</option><option>Ghardaïa</option>
+            <option>Relizane</option>
+          </select>
+        </div>
+      </div>
+      <div class="pf-group">
+        <label>Établissement / Structure</label>
+        <input type="text" id="pm-structure" placeholder="CHU Tlemcen, Clinique Al Shifa…">
+      </div>
+      <button type="submit" class="pm-submit pro-btn" id="pm-submit-btn">Activer l'abonnement</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  PRICING PAGE
+// ════════════════════════════════════════════════════════
+const PRICING_PLANS = {
+  free: {
+    label:'Gratuit', tagline:'Idéal pour explorer NephroAI',
+    price:0, icon:'🩺', iconClass:'free-icon', badge:null,
+    cardClass:'', btnClass:'free-btn',
+    btnText:'Commencer gratuitement',
+    features:['5 prédictions / mois','1 médecin','Rapport PDF basique','Support communautaire'],
+  },
+  professional: {
+    label:'Professionnel', tagline:'Pour les praticiens actifs',
+    price:800, icon:'⚕️', iconClass:'professional-icon', badge:'Le plus populaire',
+    cardClass:'featured', btnClass:'pro-btn',
+    btnText:"S'abonner — 800 DA/mois",
+    features:['Prédictions illimitées',"Jusqu'à 3 médecins",'Rapports PDF avancés','Export CSV des données','Support prioritaire'],
+  },
+  clinic: {
+    label:'Clinique', tagline:'Pour les structures multi-sites',
+    price:2000, icon:'🏥', iconClass:'clinic-icon', badge:null,
+    cardClass:'clinic-card', btnClass:'clinic-btn',
+    btnText:"S'abonner — 2 000 DA/mois",
+    features:['Prédictions illimitées','Médecins illimités','Tableau de bord multi-sites','API dédiée','Intégration HIS / LIS','Support 24 h / 7 j dédié'],
+  },
+};
+
+let pricingBuilt = false;
+
+function loadPricing() {
+  if(pricingBuilt) return;
+  pricingBuilt = true;
+
+  const inner = document.getElementById('pricing-inner');
+  inner.innerHTML = `
+    <section id="pricing-section">
+      <p class="pricing-eyebrow">Tarification transparente</p>
+      <h2 class="pricing-headline">Choisissez le plan<br><em>adapté à votre pratique</em></h2>
+      <p class="pricing-sub">De la consultation individuelle à la structure multi-sites,
+        NephroAI s'adapte à chaque niveau d'exercice avec des tarifs pensés pour le contexte algérien.</p>
+      <div class="pricing-grid" id="pricing-cards"></div>
+      <div class="pricing-proof">
+        <div class="proof-item"><span class="proof-num">98 %</span><span class="proof-label">Précision diagnostique</span></div>
+        <div class="proof-item"><span class="proof-num">+400</span><span class="proof-label">Médecins actifs</span></div>
+        <div class="proof-item"><span class="proof-num">12 k+</span><span class="proof-label">Prédictions réalisées</span></div>
+        <div class="proof-item"><span class="proof-num">24/7</span><span class="proof-label">Disponibilité API</span></div>
+      </div>
+    </section>`;
+
+  const grid = document.getElementById('pricing-cards');
+  Object.entries(PRICING_PLANS).forEach(([key, p]) => {
+    const card = document.createElement('div');
+    card.className = 'plan-card' + (p.cardClass ? ' ' + p.cardClass : '');
+    const priceHtml = p.price === 0
+      ? `<span class="plan-price-amount">0</span><span class="plan-price-currency">DA</span><span class="plan-price-period">/mois</span>`
+      : `<span class="plan-price-amount">${p.price.toLocaleString('fr-DZ')}</span><span class="plan-price-currency">DA</span><span class="plan-price-period">/mois</span>`;
+    card.innerHTML = `
+      ${p.badge ? `<div class="plan-badge">${p.badge}</div>` : ''}
+      <div class="plan-icon ${p.iconClass}">${p.icon}</div>
+      <div class="plan-name">${p.label}</div>
+      <p class="plan-tagline">${p.tagline}</p>
+      <div class="plan-price-wrap">${priceHtml}</div>
+      <ul class="plan-features">${p.features.map(f=>`<li><span class="chk">✓</span>${f}</li>`).join('')}</ul>
+      <button class="plan-btn ${p.btnClass}" data-plan="${key}">${p.btnText}</button>`;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('.plan-btn[data-plan]').forEach(btn => {
+    btn.addEventListener('click', () => pmOpen(btn.dataset.plan));
+  });
+}
+
+/* ── Modal ── */
+const pmOverlay  = document.getElementById('pricing-modal-overlay');
+const pmCloseBtn = document.getElementById('pm-close-btn');
+const pmForm     = document.getElementById('pm-form');
+const pmFeedback = document.getElementById('pm-feedback');
+const pmSubmit   = document.getElementById('pm-submit-btn');
+const pmPlanInput= document.getElementById('pm-plan-input');
+
+function pmOpen(planKey) {
+  const p = PRICING_PLANS[planKey];
+  if(!p) return;
+  pmPlanInput.value = planKey;
+  document.getElementById('pm-plan-tag').textContent = `⬡ Plan ${p.label}`;
+  document.getElementById('pm-title').textContent =
+    planKey === 'free' ? 'Activer votre compte gratuit' : `S'abonner au plan ${p.label}`;
+  pmForm.reset();
+  pmPlanInput.value = planKey;
+  pmFeedback.className = 'pm-feedback';
+  pmFeedback.textContent = '';
+  pmSubmit.disabled = false;
+  pmSubmit.className = `pm-submit ${p.btnClass}`;
+  pmSubmit.textContent = p.btnText;
+  pmForm.querySelectorAll('input,select').forEach(el => el.disabled = false);
+  pmOverlay.classList.add('open');
+  document.getElementById('pm-fname').focus();
+}
+
+function pmClose() { pmOverlay.classList.remove('open'); }
+
+pmCloseBtn.addEventListener('click', pmClose);
+pmOverlay.addEventListener('click', e => { if(e.target===pmOverlay) pmClose(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') pmClose(); });
+
+pmForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  pmFeedback.className = 'pm-feedback';
+  pmFeedback.textContent = '';
+
+  const full_name = document.getElementById('pm-fname').value.trim();
+  const email     = document.getElementById('pm-email').value.trim();
+  if(!full_name || !email) {
+    pmFeedback.className = 'pm-feedback error';
+    pmFeedback.textContent = '⚠ Veuillez renseigner votre nom et votre email.';
+    return;
+  }
+
+  const payload = {
+    plan:      pmPlanInput.value,
+    full_name, email,
+    phone:     document.getElementById('pm-phone').value.trim(),
+    wilaya:    document.getElementById('pm-wilaya').value,
+    structure: document.getElementById('pm-structure').value.trim(),
+  };
+
+  pmSubmit.disabled = true;
+  pmSubmit.textContent = 'Traitement en cours…';
+
+  try {
+    const res  = await fetch(`${FLASK}/subscribe`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if(data.success) {
+      const exp = data.expires_at
+        ? new Date(data.expires_at).toLocaleDateString('fr-DZ',{day:'2-digit',month:'long',year:'numeric'})
+        : '';
+      pmFeedback.className = 'pm-feedback success';
+      pmFeedback.textContent = `✅ ${data.message}` + (exp ? `\nActif jusqu'au ${exp}.` : '');
+      pmForm.querySelectorAll('input,select').forEach(el => el.disabled = true);
+      pmSubmit.textContent = '✓ Abonnement activé';
+      pmSubmit.style.opacity = '.6';
+    } else {
+      pmFeedback.className = 'pm-feedback error';
+      pmFeedback.textContent = `⚠ ${data.error || 'Une erreur est survenue.'}`;
+      pmSubmit.disabled = false;
+      pmSubmit.textContent = PRICING_PLANS[pmPlanInput.value]?.btnText || "S'abonner";
+    }
+  } catch {
+    pmFeedback.className = 'pm-feedback error';
+    pmFeedback.textContent = '❌ Impossible de joindre le serveur. Vérifiez votre connexion.';
+    pmSubmit.disabled = false;
+    pmSubmit.textContent = PRICING_PLANS[pmPlanInput.value]?.btnText || "S'abonner";
+  }
+});
+</script>
+</body>
+</html>
