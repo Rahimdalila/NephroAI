@@ -1703,19 +1703,79 @@ async function doLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value.trim();
   if(!user||!pass){ showErr(t('error.fields')); return; }
+
   btn.disabled=true; btn.textContent=t('common.loading');
+  const errEl = document.getElementById('loginError');
+  errEl.style.display='none';
+
+  const loginUrl = `${FLASK}/login`;
+  console.log('[NephroAI] FLASK base URL:', FLASK);
+  console.log('[NephroAI] Login URL:', loginUrl);
+  console.log('[NephroAI] Username:', user);
+
+  let rawText = '';
   try {
-    const r=await fetch(`${FLASK}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
-    const d=await r.json();
-    if(!r.ok||!d.success){ showErr(d.error||t('error.credentials')); btn.disabled=false; btn.textContent=t('login.btn'); return; }
-    setToken(d.token);
-    currentUser=d;
+    const r = await fetch(loginUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+
+    console.log('[NephroAI] HTTP status:', r.status, r.statusText);
+    console.log('[NephroAI] Content-Type:', r.headers.get('content-type'));
+
+    rawText = await r.text();
+    console.log('[NephroAI] Raw response:', rawText);
+
+    let d;
+    try {
+      d = JSON.parse(rawText);
+    } catch(parseErr) {
+      console.error('[NephroAI] JSON parse error:', parseErr);
+      showErr(`Réponse serveur invalide (HTTP ${r.status}). Vérifiez la console.`);
+      btn.disabled=false; btn.textContent=t('login.btn');
+      return;
+    }
+
+    console.log('[NephroAI] Parsed response:', d);
+
+    // Accept both {success:true, token:...} and {token:...} without explicit success flag
+    const token = d.token || d.access_token;
+    const ok    = d.success === true || (r.ok && token);
+
+    if (!ok) {
+      const msg = d.error || d.message || d.detail || t('error.credentials');
+      console.warn('[NephroAI] Login rejected by server:', msg);
+      showErr(msg);
+      btn.disabled=false; btn.textContent=t('login.btn');
+      return;
+    }
+
+    if (token) {
+      setToken(token);
+      console.log('[NephroAI] Token saved ✓');
+    } else {
+      console.warn('[NephroAI] No token in response — continuing without token');
+    }
+
+    currentUser = d;
+    console.log('[NephroAI] Login success, role:', d.role);
     enterApp();
-  } catch {
-    const acc=LOCAL_ACCOUNTS[user];
-    if(acc&&acc.password===pass){ currentUser={username:user,role:acc.role,nom:acc.nom,prenom:acc.prenom}; enterApp(); }
-    else showErr(t('error.credentials'));
-    btn.disabled=false; btn.textContent=t('login.btn');
+
+  } catch(networkErr) {
+    console.error('[NephroAI] Network / fetch error:', networkErr);
+    console.log('[NephroAI] Raw text at time of error:', rawText);
+
+    // Fallback: try local accounts (offline mode)
+    const acc = LOCAL_ACCOUNTS[user];
+    if (acc && acc.password === pass) {
+      console.log('[NephroAI] Using local fallback account');
+      currentUser = { username: user, role: acc.role, nom: acc.nom, prenom: acc.prenom };
+      enterApp();
+    } else {
+      showErr(`❌ Impossible de joindre le serveur.\n${networkErr.message}\nURL: ${loginUrl}`);
+      btn.disabled=false; btn.textContent=t('login.btn');
+    }
   }
 }
 
@@ -1853,12 +1913,27 @@ function showPage(id) {
 
 window.addEventListener('DOMContentLoaded', async ()=>{
   setLang(currentLang);
-  if(!getToken()) return;
+  console.log('[NephroAI] FLASK =', FLASK);
+  const tok = getToken();
+  if(!tok) return;
+  console.log('[NephroAI] Found saved token, verifying with /me…');
   try {
-    const r=await afetch(`${FLASK}/me`);
-    if(r.ok){ const d=await r.json(); if(d.success){ currentUser=d; enterApp(); return; } }
+    const r = await afetch(`${FLASK}/me`);
+    console.log('[NephroAI] /me status:', r.status);
+    if(r.ok){
+      const d = await r.json();
+      console.log('[NephroAI] /me response:', d);
+      // Accept {success:true} or any ok response with a username/role
+      if(d.success || d.username){
+        currentUser=d; enterApp(); return;
+      }
+    }
+    console.warn('[NephroAI] /me failed — clearing token');
     clearToken();
-  } catch { clearToken(); }
+  } catch(e) {
+    console.error('[NephroAI] /me network error:', e);
+    clearToken();
+  }
 });
 
 // ════════════════════════════════════════════════════════
