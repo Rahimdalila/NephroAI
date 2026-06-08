@@ -160,9 +160,159 @@ def init_db():
             pass
     conn3.close()
 
+    # ── Subscriptions ────────────────────────────────────────────
+    cur.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id       INTEGER REFERENCES users(id),
+        plan          TEXT    NOT NULL CHECK(plan IN ('free','professional','clinic')),
+        full_name     TEXT    NOT NULL,
+        email         TEXT    NOT NULL,
+        phone         TEXT,
+        structure     TEXT,
+        wilaya        TEXT,
+        status        TEXT    NOT NULL DEFAULT 'active'
+                              CHECK(status IN ('active','cancelled','expired')),
+        subscribed_at TEXT    NOT NULL,
+        expires_at    TEXT)""")
+
+    conn.commit()
+    conn.close()
+
     print(f"[OK] DB prête : {DB_PATH}")
 
 init_db()
+
+# ================================================================
+# SUBSCRIPTION PLANS
+# ================================================================
+PLANS = {
+    "free": {
+        "label":    "Gratuit",
+        "price":    0,
+        "currency": "DA",
+        "period":   "mois",
+        "features": [
+            "5 prédictions / mois",
+            "1 médecin",
+            "Rapport PDF basique",
+            "Support communautaire",
+        ],
+    },
+    "professional": {
+        "label":    "Professionnel",
+        "price":    800,
+        "currency": "DA",
+        "period":   "mois",
+        "features": [
+            "Prédictions illimitées",
+            "Jusqu'à 3 médecins",
+            "Rapports PDF avancés",
+            "Export CSV des données",
+            "Support prioritaire",
+        ],
+    },
+    "clinic": {
+        "label":    "Clinique",
+        "price":    2000,
+        "currency": "DA",
+        "period":   "mois",
+        "features": [
+            "Prédictions illimitées",
+            "Médecins illimités",
+            "Tableau de bord multi-sites",
+            "API dédiée",
+            "Intégration HIS/LIS",
+            "Support 24 h / 7 j dédié",
+        ],
+    },
+}
+
+@app.route("/plans", methods=["GET"])
+def get_plans():
+    return jsonify({"success": True, "plans": PLANS})
+
+@app.route("/subscribe", methods=["POST"])
+def subscribe():
+    data      = request.get_json(force=True) or {}
+    plan      = data.get("plan", "").strip().lower()
+    full_name = data.get("full_name", "").strip()
+    email     = data.get("email", "").strip()
+    phone     = data.get("phone", "").strip()
+    structure = data.get("structure", "").strip()
+    wilaya    = data.get("wilaya", "").strip()
+
+    if plan not in PLANS:
+        return jsonify({"success": False, "error": "Plan invalide"}), 400
+    if not full_name:
+        return jsonify({"success": False, "error": "Nom complet requis"}), 400
+    if not email:
+        return jsonify({"success": False, "error": "Email requis"}), 400
+
+    # Optionally link to logged-in user
+    user = get_current_user()
+    user_id = user["id"] if user else None
+
+    from datetime import timedelta
+    now        = datetime.now()
+    expires    = (now + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    now_str    = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = get_db()
+    cur  = conn.cursor()
+
+    # One active subscription per email per plan
+    cur.execute(
+        "SELECT id FROM subscriptions WHERE email=? AND plan=? AND status='active'",
+        (email, plan)
+    )
+    if cur.fetchone():
+        conn.close()
+        return jsonify({
+            "success": False,
+            "error":   "Un abonnement actif existe déjà pour cet email et ce plan."
+        }), 409
+
+    cur.execute(
+        """INSERT INTO subscriptions
+           (user_id, plan, full_name, email, phone, structure, wilaya, status, subscribed_at, expires_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (user_id, plan, full_name, email, phone, structure, wilaya,
+         "active", now_str, expires)
+    )
+    sub_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success":      True,
+        "subscription_id": sub_id,
+        "plan":         plan,
+        "plan_label":   PLANS[plan]["label"],
+        "expires_at":   expires,
+        "message":      f"Abonnement {PLANS[plan]['label']} activé avec succès !",
+    }), 201
+
+@app.route("/subscriptions", methods=["GET"])
+def list_subscriptions():
+    user, err = require_login(role="medecin")
+    if err: return err
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT * FROM subscriptions ORDER BY subscribed_at DESC")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify({"success": True, "subscriptions": rows, "total": len(rows)})
+
+@app.route("/subscription/<int:sub_id>", methods=["GET"])
+def get_subscription(sub_id):
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT * FROM subscriptions WHERE id=?", (sub_id,))
+    row  = cur.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"success": False, "error": "Abonnement introuvable"}), 404
+    return jsonify({"success": True, "subscription": dict(row)})
 
 # ================================================================
 # AUTH
