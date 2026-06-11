@@ -1,15 +1,7 @@
 # ================================================================
 #  admin_panel.py  —  NephroAI Admin Panel  (Blueprint autonome)
-#  ──────────────────────────────────────────────────────────────
-#  AJOUT MINIMAL : ne modifie rien dans App.py
-#  Intégration en 3 lignes dans App.py :
-#
-#    from admin_panel import admin_bp, init_admin
-#    init_admin(get_db, hash_pw)          # juste après init_db()
-#    app.register_blueprint(admin_bp)     # avant app.run()
-#
-#  Route d'accès : http://127.0.0.1:5000/admin
-#  Compte admin par défaut : admin / admin2025
+#  Version 2.0 — Panneau complet avec gestion utilisateurs,
+#  historiques, statistiques avancées
 # ================================================================
 
 from flask import (Blueprint, request, jsonify, render_template_string,
@@ -20,32 +12,24 @@ from functools import wraps
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-# ── Références injectées depuis App.py ────────────────────────
 _get_db   = None
 _hash_pw  = None
 ADMIN_TOKEN_COOKIE = 'nephroai_admin_token'
 
 def init_admin(get_db_fn, hash_pw_fn):
-    """Appelé une seule fois depuis App.py après init_db()."""
     global _get_db, _hash_pw
     _get_db  = get_db_fn
     _hash_pw = hash_pw_fn
     _ensure_admin_tables()
 
-# ── Création des tables admin (migration douce) ───────────────
 def _ensure_admin_tables():
     conn = _get_db()
     cur  = conn.cursor()
-
-    # Table des comptes admin
     cur.execute("""CREATE TABLE IF NOT EXISTS admin_users (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         username   TEXT NOT NULL UNIQUE,
         password   TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    )""")
-
-    # Table des logs d'actions
+        created_at TEXT NOT NULL)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS admin_logs (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         admin_user  TEXT NOT NULL,
@@ -54,34 +38,24 @@ def _ensure_admin_tables():
         target_id   TEXT,
         detail      TEXT,
         ip          TEXT,
-        created_at  TEXT NOT NULL
-    )""")
-
-    # Table des sessions admin
+        created_at  TEXT NOT NULL)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS admin_sessions (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         admin_user TEXT NOT NULL,
         token      TEXT NOT NULL UNIQUE,
-        created_at TEXT NOT NULL
-    )""")
-
-    # Compte admin par défaut (admin / admin2025)
+        created_at TEXT NOT NULL)""")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         cur.execute(
             "INSERT INTO admin_users (username, password, created_at) VALUES (?,?,?)",
-            ("admin", _hash_pw("admin2025"), now)
-        )
+            ("admin", _hash_pw("admin2025"), now))
     except sqlite3.IntegrityError:
-        pass  # déjà créé
-
+        pass
     conn.commit()
     conn.close()
 
-# ── Helpers session admin ─────────────────────────────────────
 def _get_admin_from_token(token):
-    if not token:
-        return None
+    if not token: return None
     conn = _get_db()
     cur  = conn.cursor()
     cur.execute("SELECT admin_user FROM admin_sessions WHERE token=?", (token,))
@@ -95,13 +69,11 @@ def _log(admin_user, action, target_type=None, target_id=None, detail=None):
     ip   = request.remote_addr
     conn.execute(
         "INSERT INTO admin_logs (admin_user,action,target_type,target_id,detail,ip,created_at) VALUES (?,?,?,?,?,?,?)",
-        (admin_user, action, target_type, str(target_id) if target_id else None, detail, ip, now)
-    )
+        (admin_user, action, target_type, str(target_id) if target_id else None, detail, ip, now))
     conn.commit()
     conn.close()
 
 def require_admin(f):
-    """Décorateur : protège les routes admin."""
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.cookies.get(ADMIN_TOKEN_COOKIE)
@@ -114,9 +86,7 @@ def require_admin(f):
         return f(*args, **kwargs)
     return decorated
 
-# ================================================================
-#  ROUTES AUTH ADMIN
-# ================================================================
+# ── AUTH ──
 @admin_bp.route('/login', methods=['GET'])
 def login_page():
     return render_template_string(_ADMIN_HTML)
@@ -128,27 +98,20 @@ def do_login():
     password = data.get('password', '').strip()
     if not username or not password:
         return jsonify({"success": False, "error": "Champs requis"}), 400
-
     conn = _get_db()
     cur  = conn.cursor()
-    cur.execute(
-        "SELECT id FROM admin_users WHERE username=? AND password=?",
-        (username, _hash_pw(password))
-    )
+    cur.execute("SELECT id FROM admin_users WHERE username=? AND password=?",
+                (username, _hash_pw(password)))
     row = cur.fetchone()
     if not row:
         conn.close()
         return jsonify({"success": False, "error": "Identifiants incorrects"}), 401
-
     token = secrets.token_hex(32)
     now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute(
-        "INSERT INTO admin_sessions (admin_user, token, created_at) VALUES (?,?,?)",
-        (username, token, now)
-    )
+    conn.execute("INSERT INTO admin_sessions (admin_user, token, created_at) VALUES (?,?,?)",
+                 (username, token, now))
     conn.commit()
     conn.close()
-
     _log(username, "LOGIN", detail=f"Connexion depuis {request.remote_addr}")
     resp = make_response(jsonify({"success": True}))
     resp.set_cookie(ADMIN_TOKEN_COOKIE, token, httponly=True, samesite='Lax', max_age=86400)
@@ -172,54 +135,62 @@ def do_logout():
 def dashboard():
     return render_template_string(_ADMIN_HTML)
 
-# ================================================================
-#  API — STATISTIQUES
-# ================================================================
+# ── STATS ──
 @admin_bp.route('/api/stats')
 @require_admin
 def api_stats():
     conn = _get_db()
     cur  = conn.cursor()
-    total_users  = cur.execute("SELECT COUNT(*) as n FROM users").fetchone()["n"]
-    medecins     = cur.execute("SELECT COUNT(*) as n FROM users WHERE role='medecin'").fetchone()["n"]
-    patients     = cur.execute("SELECT COUNT(*) as n FROM users WHERE role='patient'").fetchone()["n"]
-    predictions  = cur.execute("SELECT COUNT(*) as n FROM predictions").fetchone()["n"]
-    high_risk    = cur.execute("SELECT COUNT(*) as n FROM predictions WHERE risk_level='high'").fetchone()["n"]
-    subscriptions= cur.execute("SELECT COUNT(*) as n FROM subscriptions WHERE status='active'").fetchone()["n"]
-    last_24h     = cur.execute(
+    total_users       = cur.execute("SELECT COUNT(*) as n FROM users").fetchone()["n"]
+    medecins          = cur.execute("SELECT COUNT(*) as n FROM users WHERE role='medecin'").fetchone()["n"]
+    patients          = cur.execute("SELECT COUNT(*) as n FROM users WHERE role='patient'").fetchone()["n"]
+    predictions       = cur.execute("SELECT COUNT(*) as n FROM predictions").fetchone()["n"]
+    high_risk         = cur.execute("SELECT COUNT(*) as n FROM predictions WHERE risk_level='high'").fetchone()["n"]
+    medium_risk       = cur.execute("SELECT COUNT(*) as n FROM predictions WHERE risk_level='medium'").fetchone()["n"]
+    low_risk          = cur.execute("SELECT COUNT(*) as n FROM predictions WHERE risk_level='low'").fetchone()["n"]
+    subscriptions     = cur.execute("SELECT COUNT(*) as n FROM subscriptions WHERE status='active'").fetchone()["n"]
+    last_24h          = cur.execute(
         "SELECT COUNT(*) as n FROM predictions WHERE predicted_at >= datetime('now','-1 day')"
     ).fetchone()["n"]
+    total_patients_db = cur.execute("SELECT COUNT(*) as n FROM patients").fetchone()["n"]
     conn.close()
-    return jsonify({
-        "success": True,
-        "stats": {
-            "total_users":   total_users,
-            "medecins":      medecins,
-            "patients":      patients,
-            "predictions":   predictions,
-            "high_risk":     high_risk,
-            "subscriptions": subscriptions,
-            "last_24h":      last_24h,
-        }
-    })
+    return jsonify({"success": True, "stats": {
+        "total_users": total_users, "medecins": medecins, "patients": patients,
+        "predictions": predictions, "high_risk": high_risk, "medium_risk": medium_risk,
+        "low_risk": low_risk, "subscriptions": subscriptions, "last_24h": last_24h,
+        "total_patients_db": total_patients_db,
+    }})
 
-# ================================================================
-#  API — UTILISATEURS (CRUD)
-# ================================================================
+# ── USERS CRUD ──
 @admin_bp.route('/api/users')
 @require_admin
 def api_users():
+    role_filter = request.args.get('role', '')
     conn = _get_db()
     cur  = conn.cursor()
-    cur.execute("""
-        SELECT u.id, u.username, u.email, u.nom, u.prenom, u.role, u.created_at,
-               COUNT(p.id) as pred_count
-        FROM users u
-        LEFT JOIN patients pt ON pt.user_id = u.id OR pt.doctor_id = u.id
-        LEFT JOIN predictions p ON p.patient_id = pt.id
-        GROUP BY u.id
-        ORDER BY u.id DESC
-    """)
+    if role_filter in ('medecin', 'patient'):
+        cur.execute("""
+            SELECT u.id, u.username, u.email, u.nom, u.prenom, u.role, u.created_at,
+                   u.phone, u.wilaya, u.etablissement, u.specialite,
+                   COUNT(DISTINCT pt.id) as patient_count,
+                   COUNT(DISTINCT pr.id) as pred_count
+            FROM users u
+            LEFT JOIN patients pt ON (pt.doctor_id = u.id OR pt.user_id = u.id)
+            LEFT JOIN predictions pr ON pr.patient_id = pt.id
+            WHERE u.role=?
+            GROUP BY u.id ORDER BY u.id DESC
+        """, (role_filter,))
+    else:
+        cur.execute("""
+            SELECT u.id, u.username, u.email, u.nom, u.prenom, u.role, u.created_at,
+                   u.phone, u.wilaya, u.etablissement, u.specialite,
+                   COUNT(DISTINCT pt.id) as patient_count,
+                   COUNT(DISTINCT pr.id) as pred_count
+            FROM users u
+            LEFT JOIN patients pt ON (pt.doctor_id = u.id OR pt.user_id = u.id)
+            LEFT JOIN predictions pr ON pr.patient_id = pt.id
+            GROUP BY u.id ORDER BY u.id DESC
+        """)
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify({"success": True, "users": rows, "total": len(rows)})
@@ -229,17 +200,52 @@ def api_users():
 def api_user_detail(uid):
     conn = _get_db()
     cur  = conn.cursor()
-    cur.execute("SELECT id,username,email,nom,prenom,role,created_at,phone,wilaya,etablissement,specialite FROM users WHERE id=?", (uid,))
+    cur.execute("""SELECT id,username,email,nom,prenom,role,created_at,
+                          phone,wilaya,ville,etablissement,specialite,fonction
+                   FROM users WHERE id=?""", (uid,))
     user = cur.fetchone()
     if not user:
         conn.close()
         return jsonify({"success": False, "error": "Utilisateur introuvable"}), 404
-    cur.execute("SELECT COUNT(*) as n FROM predictions pr JOIN patients pt ON pt.id=pr.patient_id WHERE pt.doctor_id=? OR pt.user_id=?", (uid, uid))
-    pred_count = cur.fetchone()["n"]
-    cur.execute("SELECT risk_level, percentage, predicted_at FROM predictions pr JOIN patients pt ON pt.id=pr.patient_id WHERE pt.doctor_id=? OR pt.user_id=? ORDER BY pr.predicted_at DESC LIMIT 5", (uid, uid))
-    recent = [dict(r) for r in cur.fetchall()]
+    user = dict(user)
+
+    if user['role'] == 'medecin':
+        cur.execute("""
+            SELECT p.id, p.nom, p.prenom, p.age, p.gender, p.created_at,
+                   pr.risk_level, pr.percentage, pr.egfr, pr.predicted_at,
+                   pr.baseline_creatinine, pr.hemoglobin, pr.glucose
+            FROM patients p
+            LEFT JOIN predictions pr ON pr.patient_id = p.id
+            WHERE p.doctor_id=?
+            ORDER BY pr.predicted_at DESC LIMIT 20
+        """, (uid,))
+    else:
+        cur.execute("""
+            SELECT p.id, p.nom, p.prenom, p.age, p.gender, p.created_at,
+                   pr.risk_level, pr.percentage, pr.egfr, pr.predicted_at,
+                   pr.baseline_creatinine, pr.hemoglobin, pr.glucose
+            FROM patients p
+            LEFT JOIN predictions pr ON pr.patient_id = p.id
+            WHERE p.user_id=?
+            ORDER BY pr.predicted_at DESC LIMIT 20
+        """, (uid,))
+
+    history = [dict(r) for r in cur.fetchall()]
+
+    pred_count = cur.execute("""
+        SELECT COUNT(*) as n FROM predictions pr
+        JOIN patients p ON p.id=pr.patient_id
+        WHERE p.doctor_id=? OR p.user_id=?
+    """, (uid, uid)).fetchone()["n"]
+
+    high = cur.execute("""SELECT COUNT(*) as n FROM predictions pr JOIN patients p ON p.id=pr.patient_id
+        WHERE (p.doctor_id=? OR p.user_id=?) AND pr.risk_level='high'""", (uid, uid)).fetchone()["n"]
+    medium = cur.execute("""SELECT COUNT(*) as n FROM predictions pr JOIN patients p ON p.id=pr.patient_id
+        WHERE (p.doctor_id=? OR p.user_id=?) AND pr.risk_level='medium'""", (uid, uid)).fetchone()["n"]
+
     conn.close()
-    return jsonify({"success": True, "user": dict(user), "pred_count": pred_count, "recent_predictions": recent})
+    return jsonify({"success": True, "user": user, "history": history,
+                    "pred_count": pred_count, "high": high, "medium": medium})
 
 @admin_bp.route('/api/users', methods=['POST'])
 @require_admin
@@ -259,8 +265,7 @@ def api_create_user():
         cur  = conn.cursor()
         cur.execute(
             "INSERT INTO users (username,email,password,role,nom,prenom,created_at) VALUES (?,?,?,?,?,?,?)",
-            (username, email, _hash_pw(password), role, nom, prenom, now)
-        )
+            (username, email, _hash_pw(password), role, nom, prenom, now))
         new_id = cur.lastrowid
         conn.commit()
         conn.close()
@@ -305,7 +310,6 @@ def api_delete_user(uid):
     if not row:
         conn.close()
         return jsonify({"success": False, "error": "Utilisateur introuvable"}), 404
-    # Cascade : prédictions → patients → tokens → user
     cur.execute("DELETE FROM predictions WHERE patient_id IN (SELECT id FROM patients WHERE user_id=? OR doctor_id=?)", (uid, uid))
     cur.execute("DELETE FROM patients WHERE user_id=? OR doctor_id=?", (uid, uid))
     cur.execute("DELETE FROM tokens WHERE user_id=?", (uid,))
@@ -315,9 +319,39 @@ def api_delete_user(uid):
     _log(request.admin_user, "DELETE_USER", "user", uid, f"@{row['username']} ({row['role']})")
     return jsonify({"success": True, "deleted_id": uid})
 
-# ================================================================
-#  API — LOGS
-# ================================================================
+# ── PREDICTIONS HISTORY ──
+@admin_bp.route('/api/predictions')
+@require_admin
+def api_predictions():
+    limit  = int(request.args.get('limit', 100))
+    offset = int(request.args.get('offset', 0))
+    risk   = request.args.get('risk', '')
+    conn   = _get_db()
+    cur    = conn.cursor()
+    where  = "WHERE pr.risk_level=?" if risk in ('high', 'medium', 'low') else ""
+    args   = [risk, limit, offset] if risk in ('high', 'medium', 'low') else [limit, offset]
+    cur.execute(f"""
+        SELECT pr.id, pr.risk_level, pr.percentage, pr.egfr, pr.predicted_at,
+               pr.baseline_creatinine, pr.hemoglobin, pr.glucose, pr.albumin,
+               pr.model_used,
+               p.nom, p.prenom, p.age, p.gender,
+               u.username as doctor_username, u.nom as doctor_nom
+        FROM predictions pr
+        JOIN patients p ON p.id = pr.patient_id
+        LEFT JOIN users u ON u.id = p.doctor_id
+        {where}
+        ORDER BY pr.predicted_at DESC
+        LIMIT ? OFFSET ?
+    """, args)
+    rows  = [dict(r) for r in cur.fetchall()]
+    total = conn.execute(
+        f"SELECT COUNT(*) as n FROM predictions pr {where}",
+        [risk] if risk in ('high', 'medium', 'low') else []
+    ).fetchone()["n"]
+    conn.close()
+    return jsonify({"success": True, "predictions": rows, "total": total})
+
+# ── LOGS ──
 @admin_bp.route('/api/logs')
 @require_admin
 def api_logs():
@@ -325,18 +359,13 @@ def api_logs():
     offset = int(request.args.get('offset', 0))
     conn = _get_db()
     cur  = conn.cursor()
-    cur.execute(
-        "SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        (limit, offset)
-    )
+    cur.execute("SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
     rows  = [dict(r) for r in cur.fetchall()]
     total = conn.execute("SELECT COUNT(*) as n FROM admin_logs").fetchone()["n"]
     conn.close()
     return jsonify({"success": True, "logs": rows, "total": total})
 
-# ================================================================
-#  API — ADMINS (gestion des comptes admin)
-# ================================================================
+# ── ADMINS ──
 @admin_bp.route('/api/admins')
 @require_admin
 def api_admins():
@@ -350,7 +379,7 @@ def api_admins():
 @admin_bp.route('/api/admins', methods=['POST'])
 @require_admin
 def api_create_admin():
-    data = request.get_json(force=True) or {}
+    data     = request.get_json(force=True) or {}
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     if not username or not password or len(password) < 6:
@@ -359,10 +388,8 @@ def api_create_admin():
     try:
         conn = _get_db()
         cur  = conn.cursor()
-        cur.execute(
-            "INSERT INTO admin_users (username, password, created_at) VALUES (?,?,?)",
-            (username, _hash_pw(password), now)
-        )
+        cur.execute("INSERT INTO admin_users (username, password, created_at) VALUES (?,?,?)",
+                    (username, _hash_pw(password), now))
         new_id = cur.lastrowid
         conn.commit()
         conn.close()
@@ -376,7 +403,6 @@ def api_create_admin():
 def api_delete_admin(aid):
     conn = _get_db()
     cur  = conn.cursor()
-    # Empêcher la suppression du dernier admin
     total = conn.execute("SELECT COUNT(*) as n FROM admin_users").fetchone()["n"]
     if total <= 1:
         conn.close()
@@ -393,24 +419,22 @@ def api_delete_admin(aid):
     _log(request.admin_user, "DELETE_ADMIN", "admin", aid, f"@{row['username']}")
     return jsonify({"success": True, "deleted_id": aid})
 
-# ================================================================
-#  API — WHO AM I
-# ================================================================
 @admin_bp.route('/api/me')
 @require_admin
 def api_me():
     return jsonify({"success": True, "admin": request.admin_user})
 
 # ================================================================
-#  HTML TEMPLATE (single-file SPA)
+#  HTML TEMPLATE — SPA complète
 # ================================================================
-_ADMIN_HTML = r"""<!DOCTYPE html>
+_ADMIN_HTML = r"""{% raw %}<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>NephroAI — Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -419,11 +443,11 @@ _ADMIN_HTML = r"""<!DOCTYPE html>
   --amber:#F59E0B;--rose:#F43F5E;--violet:#7C3AED;
   --surface:#fff;--surface2:#F8FAFC;--border:#E2E8F0;
   --text:#0F172A;--muted:#64748B;--light:#94A3B8;
-  --sidebar-w:240px;
+  --sidebar-w:248px;
 }
 body{font-family:'Sora',system-ui,sans-serif;background:var(--surface2);color:var(--text);font-size:13.5px;min-height:100vh}
 
-/* ── LOGIN ── */
+/* LOGIN */
 #loginScreen{position:fixed;inset:0;z-index:9999;background:var(--navy);display:flex;align-items:center;justify-content:center}
 #loginScreen.hidden{display:none}
 .login-bg{position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 20% 80%,rgba(37,99,235,.2),transparent 60%),radial-gradient(ellipse 50% 40% at 80% 20%,rgba(124,58,237,.15),transparent 60%)}
@@ -444,11 +468,11 @@ body{font-family:'Sora',system-ui,sans-serif;background:var(--surface2);color:va
 .login-hint{margin-top:1rem;font-size:.73rem;color:rgba(255,255,255,.25);text-align:center}
 .login-hint strong{color:rgba(255,255,255,.4)}
 
-/* ── APP SHELL ── */
+/* APP */
 #app{display:none;min-height:100vh}
 #app.visible{display:flex}
 
-/* ── SIDEBAR ── */
+/* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--navy);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;overflow-y:auto}
 .sidebar-logo{display:flex;align-items:center;gap:9px;padding:1.25rem 1.1rem;border-bottom:1px solid rgba(255,255,255,.07)}
 .sidebar-logo-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -469,23 +493,20 @@ body{font-family:'Sora',system-ui,sans-serif;background:var(--surface2);color:va
 .logout-btn:hover{background:rgba(244,63,94,.15);color:#FDA4AF}
 .logout-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
 
-/* ── MAIN ── */
+/* MAIN */
 .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
-
-/* ── TOPBAR ── */
 .topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1.5rem;gap:1rem;position:sticky;top:0;z-index:50}
 .topbar h2{font-size:.95rem;font-weight:700;color:var(--text);flex:1}
 .topbar-badge{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);color:var(--blue);border-radius:6px;padding:3px 10px;font-size:.7rem;font-weight:700;letter-spacing:.06em}
-
-/* ── CONTENT ── */
 .content{padding:1.5rem;flex:1}
 .page{display:none;animation:fadeIn .2s ease}
 .page.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-/* ── STAT CARDS ── */
+/* STATS GRID */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
-@media(max-width:900px){.stats-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:1100px){.stats-grid{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:700px){.stats-grid{grid-template-columns:1fr 1fr}}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:.875rem}
 .stat-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
 .stat-num{font-size:1.8rem;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1;margin-bottom:2px}
@@ -497,13 +518,19 @@ body{font-family:'Sora',system-ui,sans-serif;background:var(--surface2);color:va
 .ic-violet{background:rgba(124,58,237,.1);color:var(--violet)}
 .ic-cyan{background:rgba(6,182,212,.1);color:var(--cyan)}
 
-/* ── CARDS ── */
+/* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1.25rem}
 .card-head{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
 .card-head h3{font-size:.9rem;font-weight:700}
 .card-body{padding:1.25rem}
 
-/* ── TABLE ── */
+/* FILTERS ROW */
+.filter-row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+.filter-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 13px;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer;color:var(--muted);transition:.15s}
+.filter-btn:hover{border-color:var(--blue);color:var(--blue)}
+.filter-btn.active{background:rgba(37,99,235,.1);border-color:var(--blue);color:var(--blue)}
+
+/* TABLE */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 thead tr{background:var(--surface2)}
@@ -513,74 +540,96 @@ tr:hover td{background:var(--surface2)}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.7rem;font-weight:700}
 .badge.medecin{background:#EDE9FE;color:#6D28D9}
 .badge.patient{background:#E0F2FE;color:#0369A1}
-.badge.admin{background:#FEE2E2;color:#991B1B}
+.badge.high{background:#FECDD3;color:#9F1239}
+.badge.medium{background:#FDE68A;color:#92400E}
+.badge.low{background:#D1FAE5;color:#065F46}
 .badge.active{background:#D1FAE5;color:#065F46}
-.badge.inactive{background:#F1F5F9;color:#64748B}
 
-/* ── BUTTONS ── */
+/* BUTTONS */
 .btn{border:none;border-radius:8px;padding:7px 14px;font-size:.78rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
 .btn-primary{background:var(--blue);color:#fff}
 .btn-primary:hover{background:#1D4ED8}
 .btn-danger{background:rgba(244,63,94,.1);color:var(--rose);border:1px solid rgba(244,63,94,.2)}
 .btn-danger:hover{background:rgba(244,63,94,.18)}
 .btn-secondary{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
-.btn-secondary:hover{border-color:var(--border);color:var(--text)}
+.btn-secondary:hover{color:var(--text)}
 .btn-sm{padding:4px 10px;font-size:.72rem}
+.btn-icon{background:none;border:none;cursor:pointer;padding:4px;border-radius:5px;color:var(--muted);transition:.15s}
+.btn-icon:hover{color:var(--text);background:var(--surface2)}
 
-/* ── SEARCH ── */
+/* SEARCH */
 .search-wrap{position:relative;display:inline-flex;align-items:center}
 .search-wrap svg{position:absolute;left:9px;width:13px;height:13px;stroke:var(--light);fill:none;stroke-width:2;pointer-events:none}
-.search-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 11px 7px 30px;font-size:.8rem;font-family:inherit;color:var(--text);width:220px;outline:none;transition:.15s}
+.search-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 11px 7px 30px;font-size:.8rem;font-family:inherit;color:var(--text);width:230px;outline:none;transition:.15s}
 .search-input:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 
-/* ── MODAL ── */
+/* MODAL */
 .modal-overlay{position:fixed;inset:0;z-index:8000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
 .modal-overlay.hidden{display:none}
-.modal{background:var(--surface);border-radius:16px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .2s ease}
-.modal-head{padding:1.1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal{background:var(--surface);border-radius:16px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .2s ease;max-height:90vh;overflow-y:auto}
+.modal-lg{max-width:820px}
+.modal-head{padding:1.1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:2}
 .modal-head h3{font-size:.95rem;font-weight:700}
 .modal-close{background:none;border:none;cursor:pointer;color:var(--light);font-size:1.2rem;line-height:1}
 .modal-body{padding:1.25rem}
 .mf{margin-bottom:.875rem}
 .mf label{display:block;font-size:.73rem;font-weight:600;color:var(--muted);margin-bottom:.3rem}
-.mf input,.mf select{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:9px 12px;font-size:.86rem;font-family:inherit;color:var(--text);outline:none;transition:.15s}
+.mf input,.mf select,.mf textarea{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:9px 12px;font-size:.86rem;font-family:inherit;color:var(--text);outline:none;transition:.15s}
 .mf input:focus,.mf select:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 .mf-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
 .mf-actions{display:flex;gap:.75rem;margin-top:1rem}
 .mf-msg{margin-top:.6rem;font-size:.78rem;text-align:center}
 
-/* ── LOGS ── */
+/* DETAIL SECTIONS */
+.detail-section{margin-bottom:1.25rem}
+.detail-section-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.di{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:.65rem .85rem}
+.di .dk{font-size:.68rem;color:var(--light);font-weight:700;margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em}
+.di .dv{font-size:.85rem;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;word-break:break-all}
+.history-row{display:flex;align-items:center;gap:.75rem;padding:.65rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:9px;margin-bottom:.4rem;font-size:.8rem}
+.history-pct{font-size:1.05rem;font-weight:700;font-family:'JetBrains Mono',monospace;min-width:44px}
+.history-pct.high{color:#9F1239}
+.history-pct.medium{color:#92400E}
+.history-pct.low{color:#065F46}
+
+/* LOGS */
 .log-item{display:flex;align-items:flex-start;gap:.75rem;padding:.7rem 0;border-bottom:1px solid var(--border)}
 .log-item:last-child{border-bottom:none}
 .log-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
 .log-action{font-size:.82rem;font-weight:600;color:var(--text)}
 .log-detail{font-size:.75rem;color:var(--muted);margin-top:2px}
 .log-time{font-size:.7rem;color:var(--light);white-space:nowrap;font-family:'JetBrains Mono',monospace;margin-left:auto;flex-shrink:0}
+.dot-login{background:var(--emerald)}.dot-logout{background:var(--light)}
+.dot-create{background:var(--blue)}.dot-update{background:var(--amber)}.dot-delete{background:var(--rose)}
 
-/* ── ACTION COLOURS ── */
-.dot-login    {background:var(--emerald)}
-.dot-logout   {background:var(--light)}
-.dot-create   {background:var(--blue)}
-.dot-update   {background:var(--amber)}
-.dot-delete   {background:var(--rose)}
+/* RISK SUMMARY */
+.risk-summary{display:flex;gap:.6rem;margin-bottom:.875rem;flex-wrap:wrap}
+.risk-chip{flex:1;min-width:80px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:.65rem .75rem;text-align:center}
+.risk-chip .rc-val{font-size:1.5rem;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1}
+.risk-chip .rc-lbl{font-size:.7rem;color:var(--muted);margin-top:2px}
+.risk-chip.high .rc-val{color:var(--rose)}
+.risk-chip.medium .rc-val{color:var(--amber)}
+.risk-chip.low .rc-val{color:var(--emerald)}
 
-/* ── EMPTY / TOAST ── */
+/* TOAST */
 .empty{text-align:center;padding:3rem;color:var(--light);font-size:.85rem}
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;background:var(--navy);color:#fff;padding:.75rem 1.25rem;border-radius:10px;font-size:.82rem;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.3);animation:fadeIn .2s ease;display:none}
 .toast.show{display:block}
 .toast.ok{border-left:3px solid var(--emerald)}
 .toast.err{border-left:3px solid var(--rose)}
 
-/* ── DETAIL PANEL ── */
-.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
-.di{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:.65rem .85rem}
-.di .dk{font-size:.68rem;color:var(--light);font-weight:700;margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em}
-.di .dv{font-size:.85rem;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace}
+/* CHARTS */
+.charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+@media(max-width:1100px){.charts-row{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.charts-row{grid-template-columns:1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.1rem 1.25rem}
+.chart-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem}
 </style>
 </head>
 <body>
 
-<!-- ══ LOGIN ══ -->
+<!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-bg"></div>
   <div class="login-box">
@@ -595,8 +644,7 @@ tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
-<!-- ══ MODALS ══ -->
-<!-- User modal -->
+<!-- MODALS -->
 <div id="userModal" class="modal-overlay hidden">
   <div class="modal">
     <div class="modal-head">
@@ -627,7 +675,6 @@ tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
-<!-- Admin modal -->
 <div id="adminModal" class="modal-overlay hidden">
   <div class="modal">
     <div class="modal-head">
@@ -638,7 +685,7 @@ tr:hover td{background:var(--surface2)}
       <div class="mf"><label>Nom d'utilisateur *</label><input type="text" id="amUsername"/></div>
       <div class="mf"><label>Mot de passe * (6 car. min.)</label><input type="password" id="amPwd"/></div>
       <div class="mf-actions">
-        <button class="btn btn-primary" onclick="saveAdmin()" style="flex:1">Créer l'admin</button>
+        <button class="btn btn-primary" onclick="saveAdmin()" style="flex:1">Créer</button>
         <button class="btn btn-secondary" onclick="closeModal('adminModal')">Annuler</button>
       </div>
       <div class="mf-msg" id="amMsg"></div>
@@ -646,9 +693,8 @@ tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
-<!-- User detail modal -->
 <div id="detailModal" class="modal-overlay hidden">
-  <div class="modal" style="max-width:540px">
+  <div class="modal modal-lg">
     <div class="modal-head">
       <h3 id="detailTitle">Détail utilisateur</h3>
       <button class="modal-close" onclick="closeModal('detailModal')">×</button>
@@ -657,13 +703,12 @@ tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
-<!-- ══ APP ══ -->
+<!-- APP -->
 <div id="app">
-  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-icon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-      <div class="sidebar-logo-text">NephroAI<small>Admin Panel</small></div>
+      <div class="sidebar-logo-text">NephroAI<small>Admin Panel v2</small></div>
     </div>
     <div class="sidebar-admin-chip" id="adminChip">admin</div>
     <nav class="sidebar-nav">
@@ -672,14 +717,25 @@ tr:hover td{background:var(--surface2)}
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         Tableau de bord
       </button>
-      <button class="nav-btn" data-page="users" onclick="showPage('users',this)">
+      <div class="nav-section">Utilisateurs</div>
+      <button class="nav-btn" data-page="medecins" onclick="showPage('medecins',this)">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="9.5" y1="13.5" x2="14.5" y2="13.5"/></svg>
+        Médecins
+      </button>
+      <button class="nav-btn" data-page="patients" onclick="showPage('patients',this)">
         <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Utilisateurs
+        Patients
+      </button>
+      <div class="nav-section">Données</div>
+      <button class="nav-btn" data-page="predictions" onclick="showPage('predictions',this)">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Prédictions
       </button>
       <button class="nav-btn" data-page="logs" onclick="showPage('logs',this)">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         Logs d'actions
       </button>
+      <div class="nav-section">Système</div>
       <button class="nav-btn" data-page="admins" onclick="showPage('admins',this)">
         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Comptes Admin
@@ -693,49 +749,98 @@ tr:hover td{background:var(--surface2)}
     </div>
   </aside>
 
-  <!-- Main -->
   <div class="main">
     <div class="topbar">
       <h2 id="topbarTitle">Tableau de bord</h2>
-      <span class="topbar-badge">ADMIN</span>
+      <span class="topbar-badge" id="topbarBadge">ADMIN</span>
     </div>
     <div class="content">
 
-      <!-- ── DASHBOARD ── -->
+      <!-- DASHBOARD -->
       <div id="page-dashboard" class="page active">
         <div class="stats-grid" id="statsGrid">
           <div class="stat-card"><div class="stat-icon ic-blue">👥</div><div><div class="stat-num" id="s-total">—</div><div class="stat-lbl">Utilisateurs total</div></div></div>
           <div class="stat-card"><div class="stat-icon ic-violet">🩺</div><div><div class="stat-num" id="s-med">—</div><div class="stat-lbl">Médecins</div></div></div>
-          <div class="stat-card"><div class="stat-icon ic-cyan">🧑</div><div><div class="stat-num" id="s-pat">—</div><div class="stat-lbl">Patients</div></div></div>
+          <div class="stat-card"><div class="stat-icon ic-cyan">🧑</div><div><div class="stat-num" id="s-pat">—</div><div class="stat-lbl">Patients (comptes)</div></div></div>
           <div class="stat-card"><div class="stat-icon ic-emerald">📊</div><div><div class="stat-num" id="s-pred">—</div><div class="stat-lbl">Prédictions totales</div></div></div>
           <div class="stat-card"><div class="stat-icon ic-rose">⚠️</div><div><div class="stat-num" id="s-high">—</div><div class="stat-lbl">Risque élevé</div></div></div>
-          <div class="stat-card"><div class="stat-icon ic-amber">💳</div><div><div class="stat-num" id="s-sub">—</div><div class="stat-lbl">Abonnements actifs</div></div></div>
+          <div class="stat-card"><div class="stat-icon ic-amber">🟡</div><div><div class="stat-num" id="s-medium">—</div><div class="stat-lbl">Risque modéré</div></div></div>
+          <div class="stat-card"><div class="stat-icon ic-emerald">🟢</div><div><div class="stat-num" id="s-low">—</div><div class="stat-lbl">Risque faible</div></div></div>
           <div class="stat-card"><div class="stat-icon ic-blue">🕐</div><div><div class="stat-num" id="s-24h">—</div><div class="stat-lbl">Prédictions 24h</div></div></div>
         </div>
-        <div class="card">
-          <div class="card-head"><h3>📋 Dernières actions</h3><button class="btn btn-secondary btn-sm" onclick="showPage('logs',document.querySelector('[data-page=logs]'))">Voir tout →</button></div>
-          <div class="card-body" id="dashLogs"><div class="empty">Chargement…</div></div>
-        </div>
-      </div>
-
-      <!-- ── USERS ── -->
-      <div id="page-users" class="page">
-        <div class="card">
-          <div class="card-head">
-            <h3>👥 Gestion des utilisateurs</h3>
-            <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
-              <div class="search-wrap">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input class="search-input" id="userSearch" placeholder="Rechercher…" oninput="filterUsers()"/>
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-title">Répartition des risques</div>
+            <div style="position:relative;height:180px;display:flex;align-items:center;justify-content:center">
+              <canvas id="chartDonut"></canvas>
+              <div style="position:absolute;text-align:center;pointer-events:none">
+                <div id="donutTotal" style="font-size:1.5rem;font-weight:700;font-family:'JetBrains Mono',monospace">—</div>
+                <div style="font-size:.65rem;color:var(--muted)">prédictions</div>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="openCreateUser()">+ Ajouter</button>
             </div>
           </div>
-          <div class="tbl-wrap" id="usersTableWrap"><div class="empty">Chargement…</div></div>
+          <div class="chart-card">
+            <div class="chart-title">Utilisateurs par type</div>
+            <div style="height:180px"><canvas id="chartUsers"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Dernières actions admin</div>
+            <div id="dashLogs" style="max-height:196px;overflow-y:auto"><div class="empty">Chargement…</div></div>
+          </div>
         </div>
       </div>
 
-      <!-- ── LOGS ── -->
+      <!-- MEDECINS -->
+      <div id="page-medecins" class="page">
+        <div class="card">
+          <div class="card-head">
+            <h3>🩺 Médecins <span id="medCount" style="font-size:.75rem;color:var(--muted);font-weight:400"></span></h3>
+            <div class="filter-row">
+              <div class="search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input class="search-input" id="medSearch" placeholder="Rechercher…" oninput="filterMedecins()"/>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openCreateUser('medecin')">+ Ajouter médecin</button>
+            </div>
+          </div>
+          <div class="tbl-wrap" id="medTableWrap"><div class="empty">Chargement…</div></div>
+        </div>
+      </div>
+
+      <!-- PATIENTS -->
+      <div id="page-patients" class="page">
+        <div class="card">
+          <div class="card-head">
+            <h3>🧑 Patients <span id="patCount" style="font-size:.75rem;color:var(--muted);font-weight:400"></span></h3>
+            <div class="filter-row">
+              <div class="search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input class="search-input" id="patSearch" placeholder="Rechercher…" oninput="filterPatients()"/>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openCreateUser('patient')">+ Ajouter patient</button>
+            </div>
+          </div>
+          <div class="tbl-wrap" id="patTableWrap"><div class="empty">Chargement…</div></div>
+        </div>
+      </div>
+
+      <!-- PREDICTIONS -->
+      <div id="page-predictions" class="page">
+        <div class="card">
+          <div class="card-head">
+            <h3>📊 Prédictions <span id="predCount" style="font-size:.75rem;color:var(--muted);font-weight:400"></span></h3>
+            <div class="filter-row">
+              <button class="filter-btn active" data-risk="" onclick="filterPredictions('')">Toutes</button>
+              <button class="filter-btn" data-risk="high" onclick="filterPredictions('high')">⚠ Élevé</button>
+              <button class="filter-btn" data-risk="medium" onclick="filterPredictions('medium')">🟡 Modéré</button>
+              <button class="filter-btn" data-risk="low" onclick="filterPredictions('low')">🟢 Faible</button>
+            </div>
+          </div>
+          <div class="tbl-wrap" id="predTableWrap"><div class="empty">Chargement…</div></div>
+        </div>
+      </div>
+
+      <!-- LOGS -->
       <div id="page-logs" class="page">
         <div class="card">
           <div class="card-head">
@@ -746,7 +851,7 @@ tr:hover td{background:var(--surface2)}
         </div>
       </div>
 
-      <!-- ── ADMINS ── -->
+      <!-- ADMINS -->
       <div id="page-admins" class="page">
         <div class="card">
           <div class="card-head">
@@ -761,44 +866,42 @@ tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
 const API = '/admin/api';
-let allUsers = [];
-let currentAdmin = null;
+let allMedecins = [], allPatients = [];
+let chartDonut = null, chartUsers = null;
 
-// ── Toast ──────────────────────────────────────────────
 function toast(msg, type='ok') {
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `toast show ${type}`;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
-// ── Modal ──────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if(e.target===o) o.classList.add('hidden'); });
 });
 
-// ── Navigation ─────────────────────────────────────────
-const PAGE_TITLES = {dashboard:'Tableau de bord', users:'Utilisateurs', logs:'Logs d\'actions', admins:'Comptes Admin'};
+const PAGE_TITLES = {
+  dashboard:'Tableau de bord', medecins:'Médecins', patients:'Patients (comptes)',
+  predictions:'Prédictions', logs:'Logs d\'actions', admins:'Comptes Admin'
+};
 function showPage(id, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   document.getElementById('topbarTitle').textContent = PAGE_TITLES[id] || id;
-  if(id==='users')  loadUsers();
-  if(id==='logs')   loadLogs();
-  if(id==='admins') loadAdmins();
+  if(id==='medecins')    loadMedecins();
+  if(id==='patients')    loadPatients();
+  if(id==='predictions') loadPredictions('');
+  if(id==='logs')        loadLogs();
+  if(id==='admins')      loadAdmins();
 }
 
-// ── Auth ───────────────────────────────────────────────
 async function doLogin() {
   const btn  = document.getElementById('loginBtn');
   const user = document.getElementById('loginUser').value.trim();
@@ -820,23 +923,17 @@ function showErr(msg) {
   const e = document.getElementById('loginErr');
   e.textContent = msg; e.style.display = 'block';
 }
-
 async function enterApp() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
-  // get admin name
   try {
     const r = await fetch(`${API}/me`);
     const d = await r.json();
-    if(d.success) {
-      currentAdmin = d.admin;
-      document.getElementById('adminChip').textContent = '⚡ ' + d.admin;
-    }
+    if(d.success) document.getElementById('adminChip').textContent = '⚡ ' + d.admin;
   } catch {}
   loadStats();
   loadDashLogs();
 }
-
 async function doLogout() {
   try { await fetch(`${API.replace('/api','')}/logout`, {method:'POST'}); } catch {}
   document.getElementById('app').classList.remove('visible');
@@ -844,131 +941,186 @@ async function doLogout() {
   document.getElementById('loginErr').style.display = 'none';
 }
 
-// ── Stats ──────────────────────────────────────────────
 async function loadStats() {
   try {
     const r = await fetch(`${API}/stats`);
     const d = await r.json();
     if(!d.success) return;
     const s = d.stats;
-    document.getElementById('s-total').textContent = s.total_users;
-    document.getElementById('s-med').textContent   = s.medecins;
-    document.getElementById('s-pat').textContent   = s.patients;
-    document.getElementById('s-pred').textContent  = s.predictions;
-    document.getElementById('s-high').textContent  = s.high_risk;
-    document.getElementById('s-sub').textContent   = s.subscriptions;
-    document.getElementById('s-24h').textContent   = s.last_24h;
+    document.getElementById('s-total').textContent  = s.total_users;
+    document.getElementById('s-med').textContent    = s.medecins;
+    document.getElementById('s-pat').textContent    = s.patients;
+    document.getElementById('s-pred').textContent   = s.predictions;
+    document.getElementById('s-high').textContent   = s.high_risk;
+    document.getElementById('s-medium').textContent = s.medium_risk;
+    document.getElementById('s-low').textContent    = s.low_risk;
+    document.getElementById('s-24h').textContent    = s.last_24h;
+    renderDonut(s);
+    renderUsersChart(s);
   } catch {}
 }
 
-// ── Dash logs ──────────────────────────────────────────
+function renderDonut(s) {
+  const ctx = document.getElementById('chartDonut');
+  if(!ctx) return;
+  const total = (s.high_risk||0)+(s.medium_risk||0)+(s.low_risk||0);
+  document.getElementById('donutTotal').textContent = total;
+  const data = [s.high_risk||0, s.medium_risk||0, s.low_risk||0];
+  const colors = ['#F43F5E','#F59E0B','#10B981'];
+  if(chartDonut) { chartDonut.data.datasets[0].data=data; chartDonut.update('none'); return; }
+  chartDonut = new Chart(ctx.getContext('2d'), {
+    type:'doughnut',
+    data:{labels:['Élevé','Modéré','Faible'],datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff',hoverOffset:4}]},
+    options:{cutout:'68%',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}}}
+  });
+}
+
+function renderUsersChart(s) {
+  const ctx = document.getElementById('chartUsers');
+  if(!ctx) return;
+  const data = [s.medecins||0, s.patients||0];
+  if(chartUsers) { chartUsers.data.datasets[0].data=data; chartUsers.update('none'); return; }
+  chartUsers = new Chart(ctx.getContext('2d'), {
+    type:'bar',
+    data:{
+      labels:['Médecins','Patients'],
+      datasets:[{data,backgroundColor:['rgba(124,58,237,.7)','rgba(6,182,212,.7)'],borderRadius:6,borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}}}}
+  });
+}
+
 async function loadDashLogs() {
   try {
-    const r = await fetch(`${API}/logs?limit=8`);
+    const r = await fetch(`${API}/logs?limit=6`);
     const d = await r.json();
     const wrap = document.getElementById('dashLogs');
-    if(!d.success || !d.logs.length) { wrap.innerHTML = '<div class="empty">Aucune action enregistrée.</div>'; return; }
+    if(!d.success || !d.logs.length) { wrap.innerHTML = '<div class="empty">Aucune action.</div>'; return; }
     wrap.innerHTML = d.logs.map(renderLogItem).join('');
   } catch {}
 }
 
 function renderLogItem(l) {
   const dotCls = l.action.startsWith('LOGIN')?'dot-login':l.action.startsWith('LOGOUT')?'dot-logout':l.action.startsWith('CREATE')?'dot-create':l.action.startsWith('UPDATE')?'dot-update':'dot-delete';
-  const detail = [l.target_type, l.target_id ? '#'+l.target_id : '', l.detail].filter(Boolean).join(' · ');
+  const detail = [l.target_type, l.target_id?'#'+l.target_id:'', l.detail].filter(Boolean).join(' · ');
   return `<div class="log-item">
     <div class="log-dot ${dotCls}"></div>
     <div style="flex:1;min-width:0">
       <div class="log-action">${l.admin_user} — ${l.action}</div>
-      <div class="log-detail">${detail || '—'} · IP ${l.ip||'—'}</div>
+      <div class="log-detail">${detail||'—'} · IP ${l.ip||'—'}</div>
     </div>
     <div class="log-time">${(l.created_at||'').slice(0,16)}</div>
   </div>`;
 }
 
-// ── Logs page ──────────────────────────────────────────
-async function loadLogs() {
-  const wrap = document.getElementById('logsWrap');
+async function loadMedecins() {
+  const wrap = document.getElementById('medTableWrap');
   wrap.innerHTML = '<div class="empty">Chargement…</div>';
   try {
-    const r = await fetch(`${API}/logs?limit=200`);
+    const r = await fetch(`${API}/users?role=medecin`);
     const d = await r.json();
-    if(!d.success || !d.logs.length) { wrap.innerHTML = '<div class="empty">Aucun log.</div>'; return; }
-    wrap.innerHTML = d.logs.map(renderLogItem).join('');
-  } catch { wrap.innerHTML = '<div class="empty">Erreur de chargement.</div>'; }
+    allMedecins = d.users || [];
+    document.getElementById('medCount').textContent = `(${allMedecins.length})`;
+    renderMedecinsTable(allMedecins);
+  } catch { wrap.innerHTML = '<div class="empty">Erreur.</div>'; }
 }
-
-// ── Users ──────────────────────────────────────────────
-async function loadUsers() {
-  const wrap = document.getElementById('usersTableWrap');
-  wrap.innerHTML = '<div class="empty">Chargement…</div>';
-  try {
-    const r = await fetch(`${API}/users`);
-    const d = await r.json();
-    if(!d.success) throw new Error();
-    allUsers = d.users;
-    renderUsersTable(allUsers);
-  } catch { wrap.innerHTML = '<div class="empty">Erreur de chargement.</div>'; }
+function filterMedecins() {
+  const q = document.getElementById('medSearch').value.toLowerCase();
+  renderMedecinsTable(q ? allMedecins.filter(u => searchUser(u, q)) : allMedecins);
 }
-
-function filterUsers() {
-  const q = document.getElementById('userSearch').value.toLowerCase();
-  renderUsersTable(q ? allUsers.filter(u =>
-    (u.username||'').toLowerCase().includes(q) ||
-    (u.nom||'').toLowerCase().includes(q) ||
-    (u.prenom||'').toLowerCase().includes(q) ||
-    (u.email||'').toLowerCase().includes(q)
-  ) : allUsers);
+function searchUser(u, q) {
+  return (u.username||'').toLowerCase().includes(q)||(u.nom||'').toLowerCase().includes(q)||(u.prenom||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q);
 }
-
-function renderUsersTable(users) {
-  const wrap = document.getElementById('usersTableWrap');
-  if(!users.length) { wrap.innerHTML = '<div class="empty">Aucun utilisateur.</div>'; return; }
+function renderMedecinsTable(users) {
+  const wrap = document.getElementById('medTableWrap');
+  if(!users.length) { wrap.innerHTML = '<div class="empty">Aucun médecin.</div>'; return; }
   wrap.innerHTML = `<table>
-    <thead><tr><th>ID</th><th>Utilisateur</th><th>Nom complet</th><th>Email</th><th>Rôle</th><th>Prédictions</th><th>Créé le</th><th>Actions</th></tr></thead>
-    <tbody>${users.map(u => `<tr>
+    <thead><tr><th>ID</th><th>Utilisateur</th><th>Nom complet</th><th>Email</th><th>Établissement</th><th>Spécialité</th><th>Patients</th><th>Prédictions</th><th>Créé le</th><th>Actions</th></tr></thead>
+    <tbody>${users.map(u=>`<tr>
       <td><span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted)">#${u.id}</span></td>
       <td><strong>@${u.username}</strong></td>
       <td>${[u.prenom,u.nom].filter(Boolean).join(' ')||'—'}</td>
       <td style="font-size:.78rem;color:var(--muted)">${u.email||'—'}</td>
-      <td><span class="badge ${u.role}">${u.role}</span></td>
+      <td style="font-size:.78rem;color:var(--muted)">${u.etablissement||'—'}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${u.specialite||'—'}</td>
+      <td><span style="font-family:'JetBrains Mono',monospace">${u.patient_count||0}</span></td>
       <td><span style="font-family:'JetBrains Mono',monospace">${u.pred_count||0}</span></td>
       <td style="font-size:.75rem;color:var(--muted)">${(u.created_at||'').slice(0,10)}</td>
       <td>
-        <div style="display:flex;gap:.3rem;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" onclick="openUserDetail(${u.id})">👁</button>
-          <button class="btn btn-secondary btn-sm" onclick="openEditUser(${u.id})">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}')">🗑</button>
+        <div style="display:flex;gap:.3rem">
+          <button class="btn btn-secondary btn-sm" onclick="openDetail(${u.id},'Médecin')">👁 Détails</button>
+          <button class="btn btn-secondary btn-sm" onclick="openEditUser(${u.id},'medecin')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}','medecins')">🗑</button>
         </div>
       </td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
 
-function openCreateUser() {
-  document.getElementById('userModalTitle').textContent = 'Créer un utilisateur';
+async function loadPatients() {
+  const wrap = document.getElementById('patTableWrap');
+  wrap.innerHTML = '<div class="empty">Chargement…</div>';
+  try {
+    const r = await fetch(`${API}/users?role=patient`);
+    const d = await r.json();
+    allPatients = d.users || [];
+    document.getElementById('patCount').textContent = `(${allPatients.length})`;
+    renderPatientsTable(allPatients);
+  } catch { wrap.innerHTML = '<div class="empty">Erreur.</div>'; }
+}
+function filterPatients() {
+  const q = document.getElementById('patSearch').value.toLowerCase();
+  renderPatientsTable(q ? allPatients.filter(u => searchUser(u, q)) : allPatients);
+}
+function renderPatientsTable(users) {
+  const wrap = document.getElementById('patTableWrap');
+  if(!users.length) { wrap.innerHTML = '<div class="empty">Aucun patient.</div>'; return; }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Utilisateur</th><th>Nom complet</th><th>Email</th><th>Wilaya</th><th>Prédictions</th><th>Créé le</th><th>Actions</th></tr></thead>
+    <tbody>${users.map(u=>`<tr>
+      <td><span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted)">#${u.id}</span></td>
+      <td><strong>@${u.username}</strong></td>
+      <td>${[u.prenom,u.nom].filter(Boolean).join(' ')||'—'}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${u.email||'—'}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${u.wilaya||'—'}</td>
+      <td><span style="font-family:'JetBrains Mono',monospace">${u.pred_count||0}</span></td>
+      <td style="font-size:.75rem;color:var(--muted)">${(u.created_at||'').slice(0,10)}</td>
+      <td>
+        <div style="display:flex;gap:.3rem">
+          <button class="btn btn-secondary btn-sm" onclick="openDetail(${u.id},'Patient')">👁 Historique</button>
+          <button class="btn btn-secondary btn-sm" onclick="openEditUser(${u.id},'patient')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}','patients')">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function openCreateUser(role='patient') {
+  document.getElementById('userModalTitle').textContent = role==='medecin'?'Créer un médecin':'Créer un patient';
   document.getElementById('pwLabel').textContent = 'Mot de passe *';
-  ['umId','umPrenom','umNom','umUsername','umEmail','umPwd'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
-  document.getElementById('umRole').value = 'patient';
+  ['umId','umPrenom','umNom','umUsername','umEmail','umPwd'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('umRole').value = role;
   document.getElementById('umMsg').innerHTML = '';
   openModal('userModal');
 }
-
-function openEditUser(id) {
-  const u = allUsers.find(x => x.id === id);
+function openEditUser(id, role) {
+  const list = role==='medecin' ? allMedecins : allPatients;
+  const u = list.find(x=>x.id===id);
   if(!u) return;
-  document.getElementById('userModalTitle').textContent = 'Modifier @' + u.username;
+  document.getElementById('userModalTitle').textContent = 'Modifier @'+u.username;
   document.getElementById('pwLabel').textContent = 'Nouveau mot de passe (vide = inchangé)';
   document.getElementById('umId').value       = u.id;
-  document.getElementById('umPrenom').value   = u.prenom  || '';
-  document.getElementById('umNom').value      = u.nom     || '';
+  document.getElementById('umPrenom').value   = u.prenom||'';
+  document.getElementById('umNom').value      = u.nom||'';
   document.getElementById('umUsername').value = u.username;
-  document.getElementById('umEmail').value    = u.email   || '';
+  document.getElementById('umEmail').value    = u.email||'';
   document.getElementById('umRole').value     = u.role;
   document.getElementById('umPwd').value      = '';
   document.getElementById('umMsg').innerHTML  = '';
   openModal('userModal');
 }
-
 async function saveUser() {
   const id     = document.getElementById('umId').value;
   const uname  = document.getElementById('umUsername').value.trim();
@@ -979,48 +1131,43 @@ async function saveUser() {
   const role   = document.getElementById('umRole').value;
   const msgEl  = document.getElementById('umMsg');
   msgEl.innerHTML = '';
-
   if(!uname) { msgEl.innerHTML = '<span style="color:var(--rose)">Nom d\'utilisateur requis.</span>'; return; }
-
   let url, method, body;
   if(id) {
-    url = `${API}/users/${id}`; method = 'PUT';
-    body = {nom, prenom, email, role};
-    if(pwd) { if(pwd.length<6){msgEl.innerHTML='<span style="color:var(--rose)">Mot de passe trop court.</span>';return;} body.new_password=pwd; }
+    url=`${API}/users/${id}`; method='PUT';
+    body={nom,prenom,email,role};
+    if(pwd){if(pwd.length<6){msgEl.innerHTML='<span style="color:var(--rose)">Mot de passe trop court.</span>';return;}body.new_password=pwd;}
   } else {
-    if(!pwd) { msgEl.innerHTML = '<span style="color:var(--rose)">Mot de passe requis.</span>'; return; }
-    url = `${API}/users`; method = 'POST';
-    body = {username:uname, password:pwd, nom, prenom, email, role};
+    if(!pwd){msgEl.innerHTML='<span style="color:var(--rose)">Mot de passe requis.</span>';return;}
+    url=`${API}/users`; method='POST';
+    body={username:uname,password:pwd,nom,prenom,email,role};
   }
-
   try {
-    const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d = await r.json();
     if(d.success) {
-      toast(id ? '✓ Utilisateur mis à jour' : '✓ Utilisateur créé');
+      toast(id?'✓ Utilisateur mis à jour':'✓ Utilisateur créé');
       closeModal('userModal');
-      loadUsers();
+      role==='medecin'?loadMedecins():loadPatients();
       loadStats();
-    } else {
-      msgEl.innerHTML = `<span style="color:var(--rose)">${d.error}</span>`;
-    }
-  } catch {
-    msgEl.innerHTML = '<span style="color:var(--rose)">Erreur serveur.</span>';
-  }
+    } else { msgEl.innerHTML=`<span style="color:var(--rose)">${d.error}</span>`; }
+  } catch { msgEl.innerHTML='<span style="color:var(--rose)">Erreur serveur.</span>'; }
 }
-
-async function deleteUser(id, username) {
-  if(!confirm(`Supprimer @${username} ? Toutes les données seront effacées.`)) return;
+async function deleteUser(id, username, refreshPage) {
+  if(!confirm(`Supprimer @${username} ? Toutes ses données seront effacées.`)) return;
   try {
-    const r = await fetch(`${API}/users/${id}`, {method:'DELETE'});
+    const r = await fetch(`${API}/users/${id}`,{method:'DELETE'});
     const d = await r.json();
-    if(d.success) { toast('🗑 Utilisateur supprimé'); loadUsers(); loadStats(); }
-    else toast(d.error||'Erreur', 'err');
-  } catch { toast('Erreur serveur', 'err'); }
+    if(d.success) {
+      toast('🗑 Utilisateur supprimé');
+      refreshPage==='medecins'?loadMedecins():loadPatients();
+      loadStats();
+    } else toast(d.error||'Erreur','err');
+  } catch { toast('Erreur serveur','err'); }
 }
 
-async function openUserDetail(id) {
-  document.getElementById('detailTitle').textContent = 'Détail utilisateur #' + id;
+async function openDetail(id, type) {
+  document.getElementById('detailTitle').textContent = `${type} #${id}`;
   document.getElementById('detailBody').innerHTML = '<div class="empty">Chargement…</div>';
   openModal('detailModal');
   try {
@@ -1029,33 +1176,104 @@ async function openUserDetail(id) {
     if(!d.success) throw new Error(d.error);
     const u = d.user;
     const di = (k,v) => `<div class="di"><div class="dk">${k}</div><div class="dv">${v||'—'}</div></div>`;
+    const riskBadge = rl => rl?`<span class="badge ${rl}">${{high:'Élevé',medium:'Modéré',low:'Faible'}[rl]||rl}</span>`:'—';
+    const histHtml = d.history.filter(h=>h.predicted_at).map(h=>`
+      <div class="history-row">
+        <div>
+          <div style="font-weight:600;font-size:.84rem">${[h.prenom,h.nom].filter(Boolean).join(' ')||'Patient'}</div>
+          <div style="font-size:.73rem;color:var(--muted)">${(h.predicted_at||'').slice(0,16)} · Âge ${h.age||'—'} · ${h.gender||'—'}</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:.75rem">
+          ${riskBadge(h.risk_level)}
+          <span class="history-pct ${h.risk_level}">${h.percentage!=null?h.percentage.toFixed(1)+'%':'—'}</span>
+          ${h.egfr?`<span style="font-size:.73rem;color:var(--muted);font-family:'JetBrains Mono',monospace">DFGe ${h.egfr}</span>`:''}
+        </div>
+      </div>`).join('');
     document.getElementById('detailBody').innerHTML = `
-      <div class="detail-grid" style="margin-bottom:1rem">
-        ${di('Username','@'+u.username)}
-        ${di('Rôle',`<span class="badge ${u.role}">${u.role}</span>`)}
-        ${di('Nom complet',[u.prenom,u.nom].filter(Boolean).join(' '))}
-        ${di('Email',u.email)}
-        ${di('Téléphone',u.phone)}
-        ${di('Wilaya',u.wilaya)}
-        ${di('Établissement',u.etablissement)}
-        ${di('Spécialité',u.specialite)}
-        ${di('Créé le',(u.created_at||'').slice(0,10))}
-        ${di('Prédictions',d.pred_count)}
+      <div class="detail-section">
+        <div class="detail-section-title">Informations du compte</div>
+        <div class="detail-grid">
+          ${di('Username','@'+u.username)}
+          ${di('Rôle',`<span class="badge ${u.role}">${u.role}</span>`)}
+          ${di('Nom complet',[u.prenom,u.nom].filter(Boolean).join(' '))}
+          ${di('Email',u.email)}
+          ${di('Téléphone',u.phone)}
+          ${di('Wilaya',u.wilaya)}
+          ${di('Ville',u.ville)}
+          ${di('Établissement',u.etablissement)}
+          ${di('Spécialité',u.specialite)}
+          ${di('Fonction',u.fonction)}
+          ${di('Créé le',(u.created_at||'').slice(0,10))}
+          ${di('Prédictions totales',d.pred_count)}
+        </div>
       </div>
-      ${d.recent_predictions.length ? `<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">Dernières prédictions</div>
-      <div style="display:flex;flex-direction:column;gap:.35rem">
-        ${d.recent_predictions.map(p=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;display:flex;align-items:center;gap:.75rem;font-size:.78rem">
-          <span class="badge ${p.risk_level}">${p.risk_level}</span>
-          <span style="font-family:'JetBrains Mono',monospace;font-weight:700">${p.percentage!=null?p.percentage.toFixed(1)+'%':'—'}</span>
-          <span style="color:var(--muted);margin-left:auto">${(p.predicted_at||'').slice(0,10)}</span>
-        </div>`).join('')}
-      </div>` : ''}`;
+      <div class="detail-section">
+        <div class="detail-section-title">Résumé des risques</div>
+        <div class="risk-summary">
+          <div class="risk-chip high"><div class="rc-val">${d.high||0}</div><div class="rc-lbl">Élevé</div></div>
+          <div class="risk-chip medium"><div class="rc-val">${d.medium||0}</div><div class="rc-lbl">Modéré</div></div>
+          <div class="risk-chip low"><div class="rc-val">${(d.pred_count||0)-(d.high||0)-(d.medium||0)}</div><div class="rc-lbl">Faible</div></div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Historique des prédictions (${d.history.filter(h=>h.predicted_at).length})</div>
+        ${histHtml || '<div class="empty" style="padding:1.5rem">Aucune prédiction enregistrée.</div>'}
+      </div>
+      <div class="mf-actions" style="margin-top:.5rem">
+        <button class="btn btn-secondary" style="flex:1" onclick="openEditUser(${u.id},'${u.role}');closeModal('detailModal')">✏️ Modifier</button>
+        <button class="btn btn-danger" onclick="deleteUser(${u.id},'${u.username}','${u.role==='medecin'?'medecins':'patients'}');closeModal('detailModal')">🗑 Supprimer</button>
+        <button class="btn btn-secondary" onclick="closeModal('detailModal')">Fermer</button>
+      </div>`;
   } catch(e) {
     document.getElementById('detailBody').innerHTML = `<div class="empty">Erreur : ${e.message}</div>`;
   }
 }
 
-// ── Admins ─────────────────────────────────────────────
+let currentRiskFilter = '';
+async function loadPredictions(risk) {
+  currentRiskFilter = risk;
+  document.querySelectorAll('[data-risk]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.risk===risk);
+  });
+  const wrap = document.getElementById('predTableWrap');
+  wrap.innerHTML = '<div class="empty">Chargement…</div>';
+  try {
+    const r = await fetch(`${API}/predictions?limit=200${risk?'&risk='+risk:''}`);
+    const d = await r.json();
+    document.getElementById('predCount').textContent = `(${d.total||0})`;
+    if(!d.predictions||!d.predictions.length) { wrap.innerHTML='<div class="empty">Aucune prédiction.</div>'; return; }
+    const riskBadge = rl => rl?`<span class="badge ${rl}">${{high:'Élevé',medium:'Modéré',low:'Faible'}[rl]||rl}</span>`:'—';
+    wrap.innerHTML = `<table>
+      <thead><tr><th>ID</th><th>Patient</th><th>Âge</th><th>Médecin</th><th>Risque</th><th>Score</th><th>DFGe</th><th>Créatinine</th><th>Hb</th><th>Modèle</th><th>Date</th></tr></thead>
+      <tbody>${d.predictions.map(p=>`<tr>
+        <td><span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted)">#${p.id}</span></td>
+        <td><strong>${[p.prenom,p.nom].filter(Boolean).join(' ')||'—'}</strong></td>
+        <td>${p.age||'—'}</td>
+        <td style="font-size:.78rem;color:var(--muted)">${p.doctor_username?'@'+p.doctor_username:'—'}</td>
+        <td>${riskBadge(p.risk_level)}</td>
+        <td><strong style="font-family:'JetBrains Mono',monospace">${p.percentage!=null?p.percentage.toFixed(1)+'%':'—'}</strong></td>
+        <td style="font-size:.78rem;font-family:'JetBrains Mono',monospace">${p.egfr!=null?p.egfr+' mL/min':'—'}</td>
+        <td style="font-size:.78rem;font-family:'JetBrains Mono',monospace">${p.baseline_creatinine!=null?p.baseline_creatinine.toFixed(1)+' mg/dL':'—'}</td>
+        <td style="font-size:.78rem;font-family:'JetBrains Mono',monospace">${p.hemoglobin!=null?p.hemoglobin.toFixed(1)+' g/dL':'—'}</td>
+        <td style="font-size:.72rem;color:var(--muted)">${p.model_used||'—'}</td>
+        <td style="font-size:.75rem;color:var(--muted)">${(p.predicted_at||'').slice(0,16)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch { wrap.innerHTML = '<div class="empty">Erreur.</div>'; }
+}
+function filterPredictions(risk) { loadPredictions(risk); }
+
+async function loadLogs() {
+  const wrap = document.getElementById('logsWrap');
+  wrap.innerHTML = '<div class="empty">Chargement…</div>';
+  try {
+    const r = await fetch(`${API}/logs?limit=200`);
+    const d = await r.json();
+    if(!d.success||!d.logs.length) { wrap.innerHTML='<div class="empty">Aucun log.</div>'; return; }
+    wrap.innerHTML = d.logs.map(renderLogItem).join('');
+  } catch { wrap.innerHTML = '<div class="empty">Erreur.</div>'; }
+}
+
 async function loadAdmins() {
   const wrap = document.getElementById('adminsTableWrap');
   wrap.innerHTML = '<div class="empty">Chargement…</div>';
@@ -1074,38 +1292,34 @@ async function loadAdmins() {
     </table>`;
   } catch { wrap.innerHTML = '<div class="empty">Erreur.</div>'; }
 }
-
 async function saveAdmin() {
   const uname = document.getElementById('amUsername').value.trim();
   const pwd   = document.getElementById('amPwd').value;
   const msgEl = document.getElementById('amMsg');
   msgEl.innerHTML = '';
-  if(!uname||!pwd) { msgEl.innerHTML='<span style="color:var(--rose)">Champs requis.</span>'; return; }
+  if(!uname||!pwd){msgEl.innerHTML='<span style="color:var(--rose)">Champs requis.</span>';return;}
   try {
-    const r = await fetch(`${API}/admins`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:uname, password:pwd})});
+    const r = await fetch(`${API}/admins`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:uname,password:pwd})});
     const d = await r.json();
-    if(d.success) { toast('✓ Admin créé'); closeModal('adminModal'); loadAdmins(); }
-    else msgEl.innerHTML = `<span style="color:var(--rose)">${d.error}</span>`;
-  } catch { msgEl.innerHTML = '<span style="color:var(--rose)">Erreur serveur.</span>'; }
+    if(d.success){toast('✓ Admin créé');closeModal('adminModal');loadAdmins();}
+    else msgEl.innerHTML=`<span style="color:var(--rose)">${d.error}</span>`;
+  } catch { msgEl.innerHTML='<span style="color:var(--rose)">Erreur serveur.</span>'; }
 }
-
-async function deleteAdmin(id, uname) {
+async function deleteAdmin(id,uname) {
   if(!confirm(`Supprimer l'admin @${uname} ?`)) return;
   try {
-    const r = await fetch(`${API}/admins/${id}`, {method:'DELETE'});
+    const r = await fetch(`${API}/admins/${id}`,{method:'DELETE'});
     const d = await r.json();
-    if(d.success) { toast('🗑 Admin supprimé'); loadAdmins(); }
-    else toast(d.error||'Erreur', 'err');
-  } catch { toast('Erreur serveur', 'err'); }
+    if(d.success){toast('🗑 Admin supprimé');loadAdmins();}
+    else toast(d.error||'Erreur','err');
+  } catch { toast('Erreur serveur','err'); }
 }
 
-// ── Auto login check on load ───────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     const r = await fetch(`${API}/me`);
     const d = await r.json();
     if(d.success) {
-      currentAdmin = d.admin;
       document.getElementById('adminChip').textContent = '⚡ ' + d.admin;
       enterApp();
     }
@@ -1114,4 +1328,4 @@ window.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
-"""
+{% endraw %}"""
