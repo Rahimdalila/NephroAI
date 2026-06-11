@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import os, sqlite3, hashlib, secrets, traceback
 from datetime import datetime
+from admin_panel import admin_bp, init_admin
 
 try:
     import joblib
@@ -26,7 +27,7 @@ CORS(
     app,
     resources={r"/*": {"origins": "*"}},
     allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "DELETE", "OPTIONS"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
 
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
@@ -75,8 +76,11 @@ def hash_pw(pw: str) -> str:
     return hashlib.sha256(pw.encode("utf-8")).hexdigest()
 
 def init_db():
+    # ── Admin blueprint init (doit être appelé avant register_blueprint) ──
+    init_admin(get_db, hash_pw)
+
     conn = get_db()
-    cur = conn.cursor()
+    cur  = conn.cursor()
 
     cur.execute("""CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,7 +122,6 @@ def init_db():
         probability REAL, percentage REAL, risk_level TEXT,
         esrd_risk_label TEXT, model_used TEXT, predicted_at TEXT)""")
 
-    # ── Subscriptions ────────────────────────────────────────────
     cur.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id       INTEGER REFERENCES users(id),
@@ -153,7 +156,7 @@ def init_db():
         conn2.execute("ALTER TABLE predictions ADD COLUMN egfr REAL")
         conn2.commit()
     except Exception:
-        pass  # Colonne déjà présente
+        pass
     finally:
         conn2.close()
 
@@ -178,7 +181,15 @@ def init_db():
 
     print(f"[OK] DB prête : {DB_PATH}")
 
+# ── Initialisation DB + Admin ────────────────────────────────────
 init_db()
+
+# ================================================================
+# ENREGISTREMENT DU BLUEPRINT ADMIN  ← CORRECTION PRINCIPALE
+# Doit être au niveau global, APRÈS init_db(), JAMAIS dans __main__
+# ================================================================
+app.register_blueprint(admin_bp)
+print("[OK] Blueprint admin enregistré — /admin disponible")
 
 # ================================================================
 # SUBSCRIPTION PLANS
@@ -304,6 +315,10 @@ def get_subscription(sub_id):
     if not row:
         return jsonify({"success": False, "error": "Abonnement introuvable"}), 404
     return jsonify({"success": True, "subscription": dict(row)})
+
+# ================================================================
+# AUTH HELPERS
+# ================================================================
 def get_current_user():
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
@@ -312,7 +327,7 @@ def get_current_user():
     if not token:
         return None
     conn = get_db()
-    cur = conn.cursor()
+    cur  = conn.cursor()
     cur.execute("""SELECT u.* FROM users u
                    JOIN tokens t ON t.user_id = u.id
                    WHERE t.token = ?""", (token,))
@@ -331,9 +346,7 @@ def require_login(role=None):
 # ================================================================
 # LOGIQUE DE PRÉDICTION
 # ================================================================
-
 def norm(raw_data):
-    """Normalise les clés du frontend vers les noms du dataset."""
     SEX_MAP = {"0": "Female", "1": "Male", 0: "Female", 1: "Male"}
     YESNO   = {"0": "No", "1": "Yes", 0: "No", 1: "Yes"}
     cr = float(raw_data.get("creatinine") or raw_data.get("Baseline Serum Creatinine (mg/dL)") or 1.0)
@@ -384,7 +397,7 @@ def encode_cat(value: str, col: str) -> int:
         "Insulin":                          {"No": 0, "Yes": 1},
         "Dipeptidyl Peptidase-4 Inhibitor": {"No": 0, "Yes": 1},
     }
-    m = mappings.get(col, {})
+    m   = mappings.get(col, {})
     val = str(value).strip().capitalize() if value not in ("Yes", "No", "Male", "Female") else str(value)
     return m.get(val, 0)
 
@@ -400,8 +413,8 @@ def esrd_predict(data: dict) -> dict:
             row[feat] = float(data.get(feat, np.nan))
 
     df = pd.DataFrame([row])
-    X = pipeline['imputer'].transform(df[pipeline['features']])
-    X = pipeline['scaler'].transform(X)
+    X  = pipeline['imputer'].transform(df[pipeline['features']])
+    X  = pipeline['scaler'].transform(X)
 
     prob  = float(pipeline['model'].predict_proba(X)[0, 1])
     pred  = int(prob >= pipeline['threshold'])
@@ -442,189 +455,165 @@ def _heuristic_predict(data: dict) -> dict:
 def classify_risk(p: float) -> str:
     return "low" if p < 0.30 else ("medium" if p < 0.65 else "high")
 
-
 # ================================================================
-# CLINICAL OVERRIDE LAYER  —  règles médicales obligatoires
+# CLINICAL OVERRIDE LAYER
 # ================================================================
 def clinical_override(data: dict, egfr: float, ml_result: dict) -> dict:
-    """
-    Applique des règles cliniques strictes (KDIGO / lignes directrices
-    néphrologiques) qui peuvent élever ou modifier le niveau de risque
-    renvoyé par le modèle ML.
+    flags    = []
+    min_risk = ml_result["risk_level"]
+    min_prob = ml_result["probability"]
 
-    Retourne un dict enrichi avec :
-      - risk_level     : niveau final (low/medium/high) après overrides
-      - probability    : probabilité finale (inchangée ou plancher clinique)
-      - percentage     : idem en %
-      - clinical_flags : liste des alertes détectées
-      - clinical_message : message médical dynamique
-      - urgency        : normal / moderate / urgent / critical
-    """
-    flags   = []      # liste des red flags détectés
-    min_risk = ml_result["risk_level"]   # plancher minimal = résultat ML
-    min_prob = ml_result["probability"]  # plancher minimal de probabilité
+    cr    = float(data.get("Baseline Serum Creatinine (mg/dL)", 1.0))
+    k     = float(data.get("potassium",  data.get("Potassium (mEq/L)", 4.0)))
+    na    = float(data.get("sodium",     data.get("Sodium (mEq/L)", 140.0)))
+    alb   = float(data.get("Albumin (g/dL)", 4.0))
+    hb    = float(data.get("Hemoglobin (g/dL)", 13.0))
+    ph    = float(data.get("Phosphate (mg/dL)", 3.5))
+    ca    = float(data.get("Calcium (mg/dL)", 9.5))
+    uac   = float(data.get("Uric Acid (mg/dL)", 5.5))
+    crp   = float(data.get("HS-CRP (mg/dL)", 0.3))
+    hba1c = float(data.get("HbA1c (%)", 5.5))
 
-    # ── Valeurs biologiques ─────────────────────────────────────
-    cr   = float(data.get("Baseline Serum Creatinine (mg/dL)", 1.0))
-    k    = float(data.get("potassium",  data.get("Potassium (mEq/L)", 4.0)))
-    na   = float(data.get("sodium",     data.get("Sodium (mEq/L)", 140.0)))
-    alb  = float(data.get("Albumin (g/dL)", 4.0))
-    hb   = float(data.get("Hemoglobin (g/dL)", 13.0))
-    ph   = float(data.get("Phosphate (mg/dL)", 3.5))
-    ca   = float(data.get("Calcium (mg/dL)", 9.5))
-    uac  = float(data.get("Uric Acid (mg/dL)", 5.5))
-    crp  = float(data.get("HS-CRP (mg/dL)", 0.3))
-    hba1c= float(data.get("HbA1c (%)", 5.5))
-    prot = data.get("protein", 0)    # présence de protéinurie (frontend simple)
-
-    # ── CKD Stage par eGFR (KDIGO) ─────────────────────────────
+    # eGFR / CKD Stage
     if egfr < 15:
-        flags.append({"code": "EGFR_G5",    "severity": "critical",
+        flags.append({"code": "EGFR_G5",   "severity": "critical",
                       "label": f"eGFR {egfr} mL/min — Stade G5 (insuffisance rénale terminale imminente)",
                       "label_ar": f"معدل الترشيح {egfr} — المرحلة G5 (فشل كلوي وشيك)"})
         min_risk = "high"; min_prob = max(min_prob, 0.90)
     elif egfr < 30:
-        flags.append({"code": "EGFR_G4",    "severity": "critical",
+        flags.append({"code": "EGFR_G4",   "severity": "critical",
                       "label": f"eGFR {egfr} mL/min — Stade G4 : risque très élevé (KDIGO)",
                       "label_ar": f"معدل الترشيح {egfr} — المرحلة G4: خطر مرتفع جداً"})
         min_risk = "high"; min_prob = max(min_prob, 0.80)
     elif egfr < 45:
-        flags.append({"code": "EGFR_G3B",   "severity": "high",
+        flags.append({"code": "EGFR_G3B",  "severity": "high",
                       "label": f"eGFR {egfr} mL/min — Stade G3b : surveillance néphrologue",
                       "label_ar": f"معدل الترشيح {egfr} — المرحلة G3b: متابعة أخصائي الكلى"})
         if min_risk == "low": min_risk = "medium"
         min_prob = max(min_prob, 0.55)
     elif egfr < 60:
-        flags.append({"code": "EGFR_G3A",   "severity": "moderate",
+        flags.append({"code": "EGFR_G3A",  "severity": "moderate",
                       "label": f"eGFR {egfr} mL/min — Stade G3a (IRC modérée)",
                       "label_ar": f"معدل الترشيح {egfr} — المرحلة G3a (قصور كلوي معتدل)"})
         if min_risk == "low": min_risk = "medium"
         min_prob = max(min_prob, 0.40)
 
-    # ── Hyperkaliémie / Hypokaliémie ────────────────────────────
+    # Kaliémie
     if k > 6.5:
-        flags.append({"code": "K_CRITICAL",  "severity": "critical",
+        flags.append({"code": "K_CRITICAL", "severity": "critical",
                       "label": f"Kaliémie {k} mEq/L — Hyperkaliémie critique (risque arythmie)",
-                      "label_ar": f"البوتاسيوم {k} — فرط البوتاسيوم الحرج (خطر اضطراب النظم)"})
+                      "label_ar": f"البوتاسيوم {k} — فرط البوتاسيوم الحرج"})
         min_risk = "high"; min_prob = max(min_prob, 0.85)
     elif k > 5.5:
-        flags.append({"code": "K_HIGH",      "severity": "high",
+        flags.append({"code": "K_HIGH",     "severity": "high",
                       "label": f"Kaliémie {k} mEq/L — Hyperkaliémie (surveillance cardiaque)",
-                      "label_ar": f"البوتاسيوم {k} — فرط البوتاسيوم (مراقبة قلبية)"})
-        if min_risk != "high": min_risk = "high"
-        min_prob = max(min_prob, 0.70)
+                      "label_ar": f"البوتاسيوم {k} — فرط البوتاسيوم"})
+        min_risk = "high"; min_prob = max(min_prob, 0.70)
     elif k < 3.0:
-        flags.append({"code": "K_LOW",       "severity": "high",
+        flags.append({"code": "K_LOW",      "severity": "high",
                       "label": f"Kaliémie {k} mEq/L — Hypokaliémie sévère",
                       "label_ar": f"البوتاسيوم {k} — نقص البوتاسيوم الشديد"})
-        if min_risk != "high": min_risk = "high"
-        min_prob = max(min_prob, 0.65)
+        min_risk = "high"; min_prob = max(min_prob, 0.65)
     elif k < 3.5:
-        flags.append({"code": "K_WARN",      "severity": "moderate",
+        flags.append({"code": "K_WARN",     "severity": "moderate",
                       "label": f"Kaliémie {k} mEq/L — Hypokaliémie légère",
                       "label_ar": f"البوتاسيوم {k} — نقص بوتاسيوم خفيف"})
         if min_risk == "low": min_risk = "medium"
 
-    # ── Dyskaliémie liée à l'IRC ────────────────────────────────
-    # Déjà couverte ci-dessus
-
-    # ── Dysnatrémie ─────────────────────────────────────────────
+    # Natrémie
     if na < 120 or na > 160:
-        flags.append({"code": "NA_CRITICAL", "severity": "critical",
+        flags.append({"code": "NA_CRITICAL","severity": "critical",
                       "label": f"Natrémie {na} mEq/L — Dysnatrémie critique",
                       "label_ar": f"الصوديوم {na} — اضطراب الصوديوم الحرج"})
         min_risk = "high"; min_prob = max(min_prob, 0.85)
     elif na < 130 or na > 155:
-        flags.append({"code": "NA_HIGH",     "severity": "high",
+        flags.append({"code": "NA_HIGH",    "severity": "high",
                       "label": f"Natrémie {na} mEq/L — Dysnatrémie sévère",
                       "label_ar": f"الصوديوم {na} — اضطراب صوديوم حاد"})
-        if min_risk != "high": min_risk = "high"
-        min_prob = max(min_prob, 0.70)
+        min_risk = "high"; min_prob = max(min_prob, 0.70)
     elif na < 135 or na > 148:
-        flags.append({"code": "NA_WARN",     "severity": "moderate",
+        flags.append({"code": "NA_WARN",    "severity": "moderate",
                       "label": f"Natrémie {na} mEq/L — Légère dysnatrémie",
                       "label_ar": f"الصوديوم {na} — اضطراب خفيف بالصوديوم"})
         if min_risk == "low": min_risk = "medium"
 
-    # ── Hypoalbuminémie ─────────────────────────────────────────
+    # Albumine
     if alb < 2.5:
         flags.append({"code": "ALB_CRITICAL","severity": "critical",
-                      "label": f"Albuminémie {alb} g/dL — Hypoalbuminémie sévère (dénutrition/syndrome néphrotique)",
+                      "label": f"Albuminémie {alb} g/dL — Hypoalbuminémie sévère",
                       "label_ar": f"الألبومين {alb} — نقص ألبومين حاد"})
         min_risk = "high"; min_prob = max(min_prob, 0.80)
     elif alb < 3.0:
-        flags.append({"code": "ALB_LOW",     "severity": "high",
-                      "label": f"Albuminémie {alb} g/dL — Hypoalbuminémie (facteur pronostique défavorable)",
-                      "label_ar": f"الألبومين {alb} — نقص ألبومين (مؤشر إنذار سيئ)"})
+        flags.append({"code": "ALB_LOW",    "severity": "high",
+                      "label": f"Albuminémie {alb} g/dL — Hypoalbuminémie",
+                      "label_ar": f"الألبومين {alb} — نقص ألبومين"})
         if min_risk == "low": min_risk = "medium"
         min_prob = max(min_prob, 0.55)
     elif alb < 3.5:
-        flags.append({"code": "ALB_WARN",    "severity": "moderate",
+        flags.append({"code": "ALB_WARN",   "severity": "moderate",
                       "label": f"Albuminémie {alb} g/dL — Légèrement abaissée",
                       "label_ar": f"الألبومين {alb} — منخفض بشكل طفيف"})
         if min_risk == "low": min_risk = "medium"
 
-    # ── Anémie néphrogène ────────────────────────────────────────
+    # Hémoglobine
     if hb < 8.0:
-        flags.append({"code": "HB_CRITICAL", "severity": "critical",
+        flags.append({"code": "HB_CRITICAL","severity": "critical",
                       "label": f"Hémoglobine {hb} g/dL — Anémie sévère (transfusion à envisager)",
-                      "label_ar": f"الهيموغلوبين {hb} — فقر دم حاد (قد يتطلب نقل دم)"})
-        if min_risk != "high": min_risk = "high"
-        min_prob = max(min_prob, 0.75)
+                      "label_ar": f"الهيموغلوبين {hb} — فقر دم حاد"})
+        min_risk = "high"; min_prob = max(min_prob, 0.75)
     elif hb < 10.0:
-        flags.append({"code": "HB_LOW",      "severity": "high",
+        flags.append({"code": "HB_LOW",     "severity": "high",
                       "label": f"Hémoglobine {hb} g/dL — Anémie modérée néphrogène",
-                      "label_ar": f"الهيموغلوبين {hb} — فقر دم معتدل كلوي المنشأ"})
+                      "label_ar": f"الهيموغلوبين {hb} — فقر دم معتدل"})
         if min_risk == "low": min_risk = "medium"
         min_prob = max(min_prob, 0.45)
 
-    # ── Hyperphosphatémie ────────────────────────────────────────
+    # Phosphate
     if ph > 6.0:
-        flags.append({"code": "PH_HIGH",     "severity": "high",
-                      "label": f"Phosphatémie {ph} mg/dL — Hyperphosphatémie (risque calcifications vasculaires)",
-                      "label_ar": f"الفوسفات {ph} — ارتفاع الفوسفات (خطر تكلسات وعائية)"})
+        flags.append({"code": "PH_HIGH",    "severity": "high",
+                      "label": f"Phosphatémie {ph} mg/dL — Hyperphosphatémie",
+                      "label_ar": f"الفوسفات {ph} — ارتفاع الفوسفات"})
         if min_risk == "low": min_risk = "medium"
         min_prob = max(min_prob, 0.50)
     elif ph > 4.5:
-        flags.append({"code": "PH_WARN",     "severity": "moderate",
+        flags.append({"code": "PH_WARN",    "severity": "moderate",
                       "label": f"Phosphatémie {ph} mg/dL — Légèrement élevée",
                       "label_ar": f"الفوسفات {ph} — مرتفع بشكل طفيف"})
 
-    # ── Créatinine très élevée ──────────────────────────────────
+    # Créatinine
     if cr > 5.0:
-        flags.append({"code": "CR_CRITICAL", "severity": "critical",
+        flags.append({"code": "CR_CRITICAL","severity": "critical",
                       "label": f"Créatinine {cr} mg/dL — Insuffisance rénale avancée",
                       "label_ar": f"الكرياتينين {cr} — قصور كلوي متقدم"})
         min_risk = "high"; min_prob = max(min_prob, 0.85)
     elif cr > 3.0:
-        flags.append({"code": "CR_HIGH",     "severity": "high",
+        flags.append({"code": "CR_HIGH",    "severity": "high",
                       "label": f"Créatinine {cr} mg/dL — Élévation importante",
                       "label_ar": f"الكرياتينين {cr} — ارتفاع ملحوظ"})
-        if min_risk != "high": min_risk = "high"
-        min_prob = max(min_prob, 0.70)
+        min_risk = "high"; min_prob = max(min_prob, 0.70)
 
-    # ── Acide urique élevé ───────────────────────────────────────
+    # Acide urique
     if uac > 10.0:
-        flags.append({"code": "UA_HIGH",     "severity": "high",
-                      "label": f"Uricémie {uac} mg/dL — Hyperuricémie sévère (néphropathie urique)",
+        flags.append({"code": "UA_HIGH",    "severity": "high",
+                      "label": f"Uricémie {uac} mg/dL — Hyperuricémie sévère",
                       "label_ar": f"حمض اليوريك {uac} — فرط حمض البول الشديد"})
         if min_risk == "low": min_risk = "medium"
 
-    # ── CRP élevée ───────────────────────────────────────────────
+    # CRP
     if crp > 3.0:
-        flags.append({"code": "CRP_HIGH",    "severity": "moderate",
+        flags.append({"code": "CRP_HIGH",   "severity": "moderate",
                       "label": f"HS-CRP {crp} mg/dL — Inflammation systémique élevée",
                       "label_ar": f"بروتين سي التفاعلي {crp} — التهاب جهازي مرتفع"})
 
-    # ── HbA1c ────────────────────────────────────────────────────
+    # HbA1c
     if hba1c > 10.0:
-        flags.append({"code": "HBA1C_CRIT",  "severity": "high",
-                      "label": f"HbA1c {hba1c}% — Diabète très déséquilibré (risque néphropathique élevé)",
+        flags.append({"code": "HBA1C_CRIT", "severity": "high",
+                      "label": f"HbA1c {hba1c}% — Diabète très déséquilibré",
                       "label_ar": f"السكر التراكمي {hba1c}% — سكري غير متوازن بشدة"})
         if min_risk == "low": min_risk = "medium"
         min_prob = max(min_prob, 0.50)
 
-    # ── Détermination de l'urgence ──────────────────────────────
+    # Urgence
     critical_flags = [f for f in flags if f["severity"] == "critical"]
     high_flags     = [f for f in flags if f["severity"] == "high"]
 
@@ -637,33 +626,30 @@ def clinical_override(data: dict, egfr: float, ml_result: dict) -> dict:
     else:
         urgency = "normal"
 
-    # ── Message médical dynamique ────────────────────────────────
     if urgency == "critical":
-        message = "⚠️ URGENCE NÉPHROLOGIQUE — Anomalies biologiques critiques détectées. Transfert hospitalier immédiat recommandé."
+        message    = "⚠️ URGENCE NÉPHROLOGIQUE — Anomalies biologiques critiques détectées. Transfert hospitalier immédiat recommandé."
         message_ar = "⚠️ حالة طارئة كلوية — شذوذات حيوية حرجة. يُنصح بالإحالة الفورية للمستشفى."
     elif urgency == "urgent":
-        message = "🔴 Anomalies sévères détectées. Consultation néphrologue urgente dans les 48 h."
+        message    = "🔴 Anomalies sévères détectées. Consultation néphrologue urgente dans les 48 h."
         message_ar = "🔴 شذوذات بيولوجية حادة. استشارة أخصائي الكلى خلال 48 ساعة."
     elif urgency == "moderate":
-        message = "🟡 Paramètres perturbés nécessitant une surveillance rapprochée. Consultation dans les 4 semaines."
+        message    = "🟡 Paramètres perturbés nécessitant une surveillance rapprochée. Consultation dans les 4 semaines."
         message_ar = "🟡 مؤشرات مضطربة تستدعي مراقبة دقيقة. استشارة طبية خلال 4 أسابيع."
     else:
-        message = "🟢 Paramètres biologiques dans les limites normales. Suivi annuel recommandé."
+        message    = "🟢 Paramètres biologiques dans les limites normales. Suivi annuel recommandé."
         message_ar = "🟢 المؤشرات البيولوجية ضمن الحدود الطبيعية. يُنصح بالمتابعة السنوية."
 
-    # ── Reconstruction du résultat final ───────────────────────
-    final = dict(ml_result)  # copie du résultat ML
-    final["risk_level"]        = min_risk
-    final["probability"]       = round(min_prob, 4)
-    final["percentage"]        = round(min_prob * 100, 1)
-    final["esrd_risk_label"]   = "ESRD Risk" if min_risk == "high" else "No ESRD Risk"
-    final["clinical_flags"]    = flags
-    final["clinical_message"]  = message
+    final = dict(ml_result)
+    final["risk_level"]          = min_risk
+    final["probability"]         = round(min_prob, 4)
+    final["percentage"]          = round(min_prob * 100, 1)
+    final["esrd_risk_label"]     = "ESRD Risk" if min_risk == "high" else "No ESRD Risk"
+    final["clinical_flags"]      = flags
+    final["clinical_message"]    = message
     final["clinical_message_ar"] = message_ar
-    final["urgency"]           = urgency
-    final["n_flags"]           = len(flags)
-    final["n_critical"]        = len(critical_flags)
-
+    final["urgency"]             = urgency
+    final["n_flags"]             = len(flags)
+    final["n_critical"]          = len(critical_flags)
     return final
 
 def compute_egfr(creatinine: float, age: float, gender: str) -> float:
@@ -729,8 +715,8 @@ def login():
     conn.commit()
     conn.close()
     return jsonify({"success": True, "token": token,
-                    "id":      user["id"],       "role":   user["role"],
-                    "username":user["username"],  "email":  user["email"]  or "",
+                    "id":      user["id"],       "role":    user["role"],
+                    "username":user["username"],  "email":   user["email"]   or "",
                     "nom":     user["nom"]    or "", "prenom": user["prenom"] or ""})
 
 @app.route("/logout", methods=["POST"])
@@ -792,40 +778,30 @@ def predict():
 
     conn = None
     try:
-        raw = request.get_json(force=True) or {}
-
-        # Normalisation des clés frontend → dataset
-        d = norm(raw)
-
-        # Prédiction ML brute
+        raw     = request.get_json(force=True) or {}
+        d       = norm(raw)
         ml_raw  = esrd_predict(d)
         factors = factor_status(d)
-
-        # eGFR
-        egfr = compute_egfr(
+        egfr    = compute_egfr(
             d["Baseline Serum Creatinine (mg/dL)"],
             d["Age"],
             d["Gender"]
         )
 
-        # ── Clinical override layer (règles médicales strictes) ──
         d_ext = dict(d)
         d_ext["potassium"] = float(raw.get("potassium") or raw.get("Potassium (mEq/L)") or 4.0)
         d_ext["sodium"]    = float(raw.get("sodium")    or raw.get("Sodium (mEq/L)")    or 140.0)
         result = clinical_override(d_ext, egfr, ml_raw)
 
-        # Infos patient
         nom       = raw.get("nom", "").strip()    or user.get("nom")    or "Inconnu"
         prenom    = raw.get("prenom", "").strip() or user.get("prenom") or "Patient"
         now       = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         link_user = user["id"] if user["role"] == "patient" else None
         doctor_id = user["id"] if user["role"] == "medecin" else None
 
-        # Sauvegarde DB
         conn = get_db()
         cur  = conn.cursor()
 
-        # Upsert patient
         cur.execute("""
             SELECT id FROM patients
             WHERE nom=? AND prenom=?
@@ -870,23 +846,23 @@ def predict():
         conn.commit()
 
         return jsonify({
-            "success":            True,
-            "probability":        result["probability"],
-            "percentage":         result["percentage"],
-            "risk_level":         result["risk_level"],
-            "esrd_risk_label":    result["esrd_risk_label"],
-            "model_used":         result["model_used"],
-            "egfr":               egfr,
-            "patient_id":         patient_id,
-            "saved":              True,
-            "factors":            factors,
-            "pipeline_loaded":    pipeline is not None,
-            "clinical_flags":     result.get("clinical_flags", []),
-            "clinical_message":   result.get("clinical_message", ""),
-            "clinical_message_ar":result.get("clinical_message_ar", ""),
-            "urgency":            result.get("urgency", "normal"),
-            "n_flags":            result.get("n_flags", 0),
-            "n_critical":         result.get("n_critical", 0),
+            "success":             True,
+            "probability":         result["probability"],
+            "percentage":          result["percentage"],
+            "risk_level":          result["risk_level"],
+            "esrd_risk_label":     result["esrd_risk_label"],
+            "model_used":          result["model_used"],
+            "egfr":                egfr,
+            "patient_id":          patient_id,
+            "saved":               True,
+            "factors":             factors,
+            "pipeline_loaded":     pipeline is not None,
+            "clinical_flags":      result.get("clinical_flags", []),
+            "clinical_message":    result.get("clinical_message", ""),
+            "clinical_message_ar": result.get("clinical_message_ar", ""),
+            "urgency":             result.get("urgency", "normal"),
+            "n_flags":             result.get("n_flags", 0),
+            "n_critical":          result.get("n_critical", 0),
         })
 
     except ValueError as ve:
@@ -899,7 +875,7 @@ def predict():
             conn.close()
 
 # ================================================================
-# DASHBOARD
+# DASHBOARD / PATIENTS
 # ================================================================
 @app.route("/patients", methods=["GET"])
 def get_patients():
@@ -911,8 +887,7 @@ def get_patients():
         p.id, p.nom, p.prenom, p.age, p.gender, p.created_at,
         pr.id AS prediction_id,
         pr.baseline_creatinine AS creatinine,
-        pr.mean_creatinine,
-        pr.hemoglobin, pr.glucose, pr.albumin,
+        pr.mean_creatinine, pr.hemoglobin, pr.glucose, pr.albumin,
         pr.hba1c, pr.cholesterol, pr.triglyceride,
         pr.ldl_c, pr.hdl_c, pr.uric_acid,
         pr.calcium, pr.phosphate, pr.hs_crp,
@@ -1005,7 +980,6 @@ def get_accounts():
     conn.close()
     return jsonify({"success": True, "accounts": rows})
 
-
 @app.route("/profile", methods=["GET"])
 def get_profile():
     user, err = require_login()
@@ -1026,12 +1000,12 @@ def get_profile():
 def update_profile():
     user, err = require_login()
     if err: return err
-    data = request.get_json(force=True) or {}
+    data    = request.get_json(force=True) or {}
     allowed = ["nom", "prenom", "email", "phone", "wilaya", "ville",
                "etablissement", "specialite", "fonction", "photo_base64"]
     updates = {k: data[k] for k in allowed if k in data}
     if not updates:
-        return jsonify({"success": False, "error": "Aucune donnee a mettre a jour"}), 400
+        return jsonify({"success": False, "error": "Aucune donnée à mettre à jour"}), 400
     set_clause = ", ".join(f"{k}=?" for k in updates)
     values     = list(updates.values()) + [user["id"]]
     conn = get_db()
@@ -1039,10 +1013,6 @@ def update_profile():
     conn.commit()
     conn.close()
     return jsonify({"success": True, "updated": list(updates.keys())})
-
-# ================================================================
-# GESTION DES COMPTES — routes supplementaires
-# ================================================================
 
 @app.route("/change-password", methods=["POST"])
 def change_password():
@@ -1054,7 +1024,7 @@ def change_password():
     if not old_pw or not new_pw:
         return jsonify({"success": False, "error": "Champs requis"}), 400
     if len(new_pw) < 6:
-        return jsonify({"success": False, "error": "Mot de passe trop court (6 caracteres min.)"}), 400
+        return jsonify({"success": False, "error": "Mot de passe trop court (6 caractères min.)"}), 400
     conn = get_db()
     cur  = conn.cursor()
     cur.execute("SELECT id FROM users WHERE id=? AND password=?",
@@ -1066,7 +1036,6 @@ def change_password():
     conn.commit()
     conn.close()
     return jsonify({"success": True})
-
 
 @app.route("/accounts/<int:account_id>", methods=["GET"])
 def get_account_detail(account_id):
@@ -1083,23 +1052,19 @@ def get_account_detail(account_id):
         conn.close()
         return jsonify({"success": False, "error": "Compte introuvable"}), 404
     account = dict(row)
-    cur.execute(
-        "SELECT COUNT(*) as n FROM patients WHERE user_id=?",
-        (account_id,)
-    )
-    account["patient_count"] = cur.fetchone()["n"]
-    cur.execute(
+    account["patient_count"] = cur.execute(
+        "SELECT COUNT(*) as n FROM patients WHERE user_id=?", (account_id,)
+    ).fetchone()["n"]
+    last = cur.execute(
         "SELECT pr.risk_level, pr.percentage, pr.egfr, pr.predicted_at "
         "FROM predictions pr JOIN patients p ON p.id=pr.patient_id "
         "WHERE p.user_id=? ORDER BY pr.predicted_at DESC LIMIT 1",
         (account_id,)
-    )
-    last = cur.fetchone()
+    ).fetchone()
     if last:
         account.update(dict(last))
     conn.close()
     return jsonify({"success": True, "account": account})
-
 
 @app.route("/accounts/<int:account_id>", methods=["PUT"])
 def update_account(account_id):
@@ -1111,10 +1076,10 @@ def update_account(account_id):
     new_pw  = data.get("new_password", "").strip()
     if new_pw:
         if len(new_pw) < 6:
-            return jsonify({"success": False, "error": "Mot de passe trop court (6 caracteres min.)"}), 400
+            return jsonify({"success": False, "error": "Mot de passe trop court (6 caractères min.)"}), 400
         updates["password"] = hash_pw(new_pw)
     if not updates:
-        return jsonify({"success": False, "error": "Aucune donnee a mettre a jour"}), 400
+        return jsonify({"success": False, "error": "Aucune donnée à mettre à jour"}), 400
     conn = get_db()
     cur  = conn.cursor()
     cur.execute("SELECT id FROM users WHERE id=? AND role='patient'", (account_id,))
@@ -1122,12 +1087,11 @@ def update_account(account_id):
         conn.close()
         return jsonify({"success": False, "error": "Compte patient introuvable"}), 404
     set_clause = ", ".join(k + "=?" for k in updates)
-    values     = list(updates.values()) + [account_id]
-    conn.execute("UPDATE users SET " + set_clause + " WHERE id=?", values)
+    conn.execute("UPDATE users SET " + set_clause + " WHERE id=?",
+                 list(updates.values()) + [account_id])
     conn.commit()
     conn.close()
     return jsonify({"success": True, "updated": list(updates.keys())})
-
 
 @app.route("/accounts/<int:account_id>", methods=["DELETE"])
 def delete_account(account_id):
@@ -1150,7 +1114,6 @@ def delete_account(account_id):
     conn.close()
     return jsonify({"success": True, "deleted_id": account_id})
 
-
 @app.route("/model-info", methods=["GET"])
 def model_info():
     p = pipeline or {}
@@ -1170,12 +1133,15 @@ def home():
     return send_from_directory(templates_dir, "nephroai_final.html")
 
 # ================================================================
+# ENTRY POINT
+# ================================================================
 if __name__ == "__main__":
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  NephroAI Flask API v6.0 — XGBoost ESRD Pipeline")
-    print(f"  Pipeline : {'OUI — ' + str((pipeline or {}).get('n_features',0)) + ' features' if pipeline else 'NON (fallback heuristique)'}")
+    print(f"  Pipeline : {'OUI — ' + str((pipeline or {}).get('n_features', 0)) + ' features' if pipeline else 'NON (fallback heuristique)'}")
     print(f"  Modèle   : {(pipeline or {}).get('model_name', 'N/A')}")
     print("  Auth     : Bearer Token")
+    print("  Admin    : http://127.0.0.1:5000/admin")
     print("  URL      : http://127.0.0.1:5000")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
     app.run(debug=True, port=5000)
