@@ -303,123 +303,12 @@ tr:hover td{background:var(--surface-2)}
 .empty-state p{font-size:.85rem}
 .warn-banner{display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:.75rem 1rem;font-size:.8rem;color:#92400E;margin-bottom:1rem}
 .warn-banner svg{width:16px;height:16px;flex-shrink:0;stroke:#F59E0B;fill:none;stroke-width:2}
-/* ══ HAMBURGER ══════════════════════════════════════════ */
-.hamburger-btn {
-  display:none;flex-direction:column;justify-content:center;
-  align-items:center;gap:5px;
-  width:36px;height:36px;
-  background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.12);
-  border-radius:8px;cursor:pointer;padding:0;flex-shrink:0;
-}
-.hamburger-btn span {
-  display:block;width:18px;height:2px;
-  background:#fff;border-radius:2px;
-  transition:.25s;transform-origin:center;
-}
-.hamburger-btn.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
-.hamburger-btn.open span:nth-child(2){opacity:0;transform:scaleX(0)}
-.hamburger-btn.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
-
-/* ══ MOBILE SLIDE MENU ══════════════════════════════════ */
-.mobile-menu {
-  display:none;
-  position:fixed;top:58px;left:0;right:0;z-index:99;
-  background:var(--navy);
-  border-bottom:1px solid rgba(255,255,255,.1);
-  padding:.75rem 1rem 1rem;
-  box-shadow:0 12px 32px rgba(0,0,0,.4);
-  flex-direction:column;gap:.25rem;
-}
-.mobile-menu.open { display:flex; }
-.mobile-menu-user {
-  display:flex;align-items:center;gap:8px;
-  padding:.4rem .25rem .75rem;
-  font-size:.83rem;color:rgba(255,255,255,.6);font-weight:600;
-  border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:.5rem;
-}
-#mobileNav { display:flex;flex-direction:column;gap:3px; }
-#mobileNav .tnav {
-  text-align:left;padding:11px 14px;
-  border-radius:9px;font-size:.9rem;width:100%;
-}
-[dir="rtl"] #mobileNav .tnav { text-align:right; }
-.mobile-menu-footer {
-  margin-top:.75rem;padding-top:.75rem;
-  border-top:1px solid rgba(255,255,255,.08);
-  display:flex;align-items:center;
-  justify-content:space-between;gap:.75rem;
-}
-.mobile-lang-row {
-  display:flex;gap:3px;
-  background:rgba(255,255,255,.06);
-  border-radius:8px;padding:3px;
-}
-.mobile-logout-btn {
-  background:rgba(244,63,94,.12);
-  border:1px solid rgba(244,63,94,.25);
-  color:#FDA4AF;padding:7px 14px;
-  border-radius:8px;font-size:.8rem;
-  font-family:inherit;cursor:pointer;transition:.15s;
-}
-.mobile-logout-btn:hover { background:rgba(244,63,94,.22); }
-.mobile-backdrop {
-  display:none;position:fixed;inset:0;z-index:98;
-  background:rgba(0,0,0,.45);backdrop-filter:blur(2px);
-}
-.mobile-backdrop.open { display:block; }
-
-/* ══ RESPONSIVE ≤ 900px ═════════════════════════════════ */
 @media(max-width:900px){
-  .topbar-nav   { display:none !important }
-  .topbar .lang-switcher  { display:none }
-  .topbar .logout-btn     { display:none }
-  .topbar .user-chip      { display:none }
-  .hamburger-btn          { display:flex }
-
-  .analysis-layout  { grid-template-columns:1fr }
-  .result-panel     { position:static }
-  .stats-row        { grid-template-columns:1fr 1fr }
-  .fgrid,.factor-grid,.detail-grid { grid-template-columns:1fr }
-  #chartsRow        { grid-template-columns:1fr !important }
-}
-
-/* ══ RESPONSIVE ≤ 600px ═════════════════════════════════ */
-@media(max-width:600px){
-  .topbar         { padding:0 1rem;gap:.6rem }
-  .logo           { font-size:.85rem }
-  .logo-icon      { width:26px;height:26px }
-  .inner          { padding:1.25rem 1rem }
-  .stats-row      { grid-template-columns:1fr 1fr;gap:.6rem }
-  .stat-tile .num { font-size:1.5rem }
-  .page-header    { flex-direction:column;align-items:flex-start;gap:.6rem }
-  .page-header h1 { font-size:1.1rem }
-  .form-card-header { padding:1rem 1.1rem }
-  .form-card-body   { padding:1.1rem }
-  .hist-toolbar   { flex-direction:column;align-items:flex-start;gap:.6rem }
-  .search-input   { width:100% !important }
-  .hist-card      { overflow-x:auto }
-  table           { min-width:520px }
-  .modal          { width:calc(100vw - 2rem);max-width:100%;margin:1rem;padding:1.25rem }
-  .modal-head     { padding:.9rem 1.1rem }
-  .risk-pct       { font-size:2.8rem }
-  .factor-grid    { grid-template-columns:1fr 1fr }
-  .acc-row        { flex-wrap:wrap }
-  .acc-actions    { width:100%;justify-content:flex-end;margin-top:.3rem }
-  .pricing-grid   { grid-template-columns:1fr !important;gap:14px !important }
-  #pricing-section{ padding:40px 16px 60px !important }
-  .pricing-headline{ font-size:1.6rem !important }
-  .pricing-proof  { gap:20px !important }
-  .pricing-modal  { padding:24px 16px 20px !important }
-  .pf-row         { grid-template-columns:1fr !important }
-}
-
-/* ══ RESPONSIVE ≤ 400px ═════════════════════════════════ */
-@media(max-width:400px){
-  .stats-row    { grid-template-columns:1fr }
-  .factor-grid  { grid-template-columns:1fr }
-  .score-row    { flex-direction:column }
-  .score-chip   { flex:unset;width:100% }
+  .analysis-layout{grid-template-columns:1fr}
+  .result-panel{position:static}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .fgrid,.factor-grid,.detail-grid{grid-template-columns:1fr}
+  .topbar-nav{display:none}
 }
 
 /* ─── CLINICAL ALERTS & URGENCY ─── */
@@ -488,7 +377,10 @@ tr:hover td{background:var(--surface-2)}
 .sub-status-dot.active{background:var(--emerald)}
 .sub-status-dot.cancelled,.sub-status-dot.expired{background:var(--rose)}
 
-/* ─── CHARTS — responsive handled above ─────────────── */
+/* ─── CHARTS RESPONSIVE ───────────────── */
+@media(max-width:900px){
+  #chartsRow{grid-template-columns:1fr!important}
+}
 
 /* CKD stage pill */
 .ckd-pill{
@@ -656,29 +548,8 @@ tr:hover td{background:var(--surface-2)}
         <span id="userChipText">—</span>
       </div>
       <button class="logout-btn" onclick="doLogout()" data-i18n="common.logout">Déconnexion</button>
-      <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </div>
-
-  <!-- Mobile menu -->
-  <div class="mobile-menu" id="mobileMenu">
-    <div class="mobile-menu-user">
-      <div class="user-dot"></div>
-      <span id="mobileUserText">—</span>
-    </div>
-    <nav id="mobileNav"></nav>
-    <div class="mobile-menu-footer">
-      <div class="mobile-lang-row">
-        <button class="lang-btn" onclick="setLang('fr');closeMobileMenu()">FR</button>
-        <button class="lang-btn" onclick="setLang('en');closeMobileMenu()">EN</button>
-        <button class="lang-btn" onclick="setLang('ar');closeMobileMenu()">ع</button>
-      </div>
-      <button class="mobile-logout-btn" onclick="doLogout()">Déconnexion</button>
-    </div>
-  </div>
-  <div class="mobile-backdrop" id="mobileBackdrop" onclick="closeMobileMenu()"></div>
 
   <!-- ANALYSE -->
   <div id="page-analyse" class="page active">
@@ -1468,9 +1339,7 @@ function setLang(lang) {
 // ════════════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════════════
-const FLASK = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? 'http://127.0.0.1:5000'
-  : window.location.origin;
+const FLASK  = '';
 const TK_KEY = 'nephroai_token_v2';
 const DB_KEY = 'nephroai_patients_v2';
 
@@ -1517,9 +1386,13 @@ async function doLogin() {
   if(!user||!pass){ showErr(t('error.fields')); return; }
   btn.disabled=true; btn.textContent=t('common.loading');
   try {
-    const r=await fetch(`${FLASK}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+    const r=await fetch(`${FLASK}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass}),credentials:'include'});
     const d=await r.json();
     if(!r.ok||!d.success){ showErr(d.error||t('error.credentials')); btn.disabled=false; btn.textContent=t('login.btn'); return; }
+    if(d.role==='admin'){
+      window.location.href='/admin';
+      return;
+    }
     setToken(d.token);
     currentUser=d;
     enterApp();
@@ -1577,28 +1450,9 @@ function enterApp() {
   ap.classList.add('visible');
   buildNav();
   document.getElementById('userChipText').textContent=`${currentUser.prenom} ${currentUser.nom}`;
-  const mobileUser = document.getElementById('mobileUserText');
-  if (mobileUser) mobileUser.textContent = `${currentUser.prenom} ${currentUser.nom}`;
   setLang(currentLang); // apply translations to app
   if(currentUser.role==='medecin') showPage('historique');
   else showPage('analyse');
-}
-
-// ════════════════════════════════════════════════════════
-//  MOBILE MENU
-// ════════════════════════════════════════════════════════
-function toggleMobileMenu() {
-  const menu = document.getElementById('mobileMenu');
-  const bd   = document.getElementById('mobileBackdrop');
-  const btn  = document.getElementById('hamburgerBtn');
-  const open = menu.classList.contains('open');
-  if (open) { closeMobileMenu(); }
-  else { menu.classList.add('open'); bd.classList.add('open'); btn.classList.add('open'); }
-}
-function closeMobileMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('mobileBackdrop').classList.remove('open');
-  document.getElementById('hamburgerBtn').classList.remove('open');
 }
 
 // Super-admins who can see subscriptions
@@ -1614,6 +1468,10 @@ function buildNav() {
       {id:'comptes',    key:'nav.accounts'},
       {id:'tarifs',     key:'nav.pricing'},
     ];
+    // Abonnements tab visible only to Karim & Sara
+    if (ADMIN_USERS.includes(currentUser.username)) {
+      // Shown inside historique as a tab, no separate nav item needed
+    }
   } else {
     items = [
       {id:'analyse',      key:'nav.new_analysis'},
@@ -1621,26 +1479,9 @@ function buildNav() {
       {id:'tarifs',       key:'nav.pricing'},
     ];
   }
-
-  const btnHtml = items.map(i =>
+  nav.innerHTML = items.map(i =>
     `<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}" onclick="showPage('${i.id}')">${t(i.key)}</button>`
   ).join('');
-  nav.innerHTML = btnHtml;
-
-  // Populate mobile nav
-  const mobileNav = document.getElementById('mobileNav');
-  if (mobileNav) {
-    mobileNav.innerHTML = items.map(i =>
-      `<button class="tnav${i.id===currentPage?' active':''}" data-page="${i.id}"
-        onclick="showPage('${i.id}');closeMobileMenu()">${t(i.key)}</button>`
-    ).join('');
-  }
-
-  // Sync lang buttons in mobile menu
-  document.querySelectorAll('.mobile-lang-row .lang-btn').forEach(b => {
-    const map = {'FR':'fr','EN':'en','ع':'ar'};
-    b.classList.toggle('active', map[b.textContent.trim()] === currentLang);
-  });
 }
 
 function showPage(id) {
@@ -1648,13 +1489,13 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const el=document.getElementById('page-'+id);
   if(el) el.classList.add('active');
-  // Sync both desktop + mobile nav buttons
-  document.querySelectorAll('.tnav[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+  document.querySelectorAll('.tnav').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
   if(id==='historique')   loadHistorique();
   if(id==='comptes')      loadAccounts();
   if(id==='mesresultats') loadMyResults();
-  if(id==='tarifs')       loadPricing();
+  if(id==='tarifs')      loadPricing();
   if(id==='analyse') {
+    // If no result card is showing, make sure empty state is visible
     const rc = document.getElementById('resultCard');
     const re = document.getElementById('resultEmpty');
     if(rc && !rc.classList.contains('show') && re) re.style.display='';
