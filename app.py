@@ -2,14 +2,14 @@
 #  App.py — NephroAI Flask Backend v6.0 (XGBoost ESRD Pipeline)
 # ================================================================
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, make_response
 import os as _os
 from flask_cors import CORS
 import numpy as np
 import pandas as pd
 import os, sqlite3, hashlib, secrets, traceback
 from datetime import datetime
-from admin_panel import admin_bp, init_admin
+from admin_panel import admin_bp, init_admin, check_admin_credentials, create_admin_session, ADMIN_TOKEN_COOKIE
 
 try:
     import joblib
@@ -707,6 +707,17 @@ def login():
     user = cur.fetchone()
     if not user:
         conn.close()
+        # ── Vérification compte admin ──
+        if check_admin_credentials(identifier, password):
+            admin_token = create_admin_session(identifier, ip=request.remote_addr)
+            resp = make_response(jsonify({
+                "success": True, "role": "admin",
+                "username": identifier, "nom": "", "prenom": "",
+                "email": "", "id": None, "token": None,
+            }))
+            resp.set_cookie(ADMIN_TOKEN_COOKIE, admin_token, httponly=True,
+                            samesite='Lax', max_age=86400)
+            return resp
         return jsonify({"success": False, "error": "Identifiants incorrects"}), 401
     token = secrets.token_hex(32)
     now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
