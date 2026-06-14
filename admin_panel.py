@@ -87,6 +87,29 @@ def require_admin(f):
     return decorated
 
 # ── AUTH ──
+
+def check_admin_credentials(username, password):
+    """Retourne True si (username, password) correspond à un admin."""
+    conn = _get_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT id FROM admin_users WHERE username=? AND password=?",
+                (username, _hash_pw(password)))
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
+
+def create_admin_session(username, ip=None):
+    """Crée une session admin et retourne le token (à poser en cookie)."""
+    conn  = _get_db()
+    token = secrets.token_hex(32)
+    now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("INSERT INTO admin_sessions (admin_user, token, created_at) VALUES (?,?,?)",
+                 (username, token, now))
+    conn.commit()
+    conn.close()
+    _log(username, "LOGIN", detail=f"Connexion depuis {ip or request.remote_addr}")
+    return token
+
 @admin_bp.route('/login', methods=['GET'])
 def login_page():
     return render_template_string(_ADMIN_HTML)
@@ -98,21 +121,9 @@ def do_login():
     password = data.get('password', '').strip()
     if not username or not password:
         return jsonify({"success": False, "error": "Champs requis"}), 400
-    conn = _get_db()
-    cur  = conn.cursor()
-    cur.execute("SELECT id FROM admin_users WHERE username=? AND password=?",
-                (username, _hash_pw(password)))
-    row = cur.fetchone()
-    if not row:
-        conn.close()
+    if not check_admin_credentials(username, password):
         return jsonify({"success": False, "error": "Identifiants incorrects"}), 401
-    token = secrets.token_hex(32)
-    now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute("INSERT INTO admin_sessions (admin_user, token, created_at) VALUES (?,?,?)",
-                 (username, token, now))
-    conn.commit()
-    conn.close()
-    _log(username, "LOGIN", detail=f"Connexion depuis {request.remote_addr}")
+    token = create_admin_session(username)
     resp = make_response(jsonify({"success": True}))
     resp.set_cookie(ADMIN_TOKEN_COOKIE, token, httponly=True, samesite='Lax', max_age=86400)
     return resp
