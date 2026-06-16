@@ -920,7 +920,10 @@ function setLandingLang(lang) {
 function goToLogin() {
   const ls = document.getElementById('landingScreen');
   ls.style.opacity = '0';
-  setTimeout(() => { ls.style.display = 'none'; }, 500);
+  setTimeout(() => {
+    ls.style.display = 'none';
+    showLogin();  // ← Ajout : réaffiche l’écran de connexion
+  }, 500);
 }
 
 // ════════════════════════════════════════════════════════
