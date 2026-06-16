@@ -30,32 +30,52 @@ CORS(
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
 
-BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
-DB_PATH       = os.path.join(BASE_DIR, "nephroai.db")
-PIPELINE_PATH = os.path.join(BASE_DIR, "esrd_pipeline.pkl")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH  = os.path.join(BASE_DIR, "nephroai.db")
 
 # ================================================================
-# CHARGEMENT DU PIPELINE XGBoost
+# CHARGEMENT DES PIPELINES MULTI-MODÈLES (RF / XGBoost / AdaBoost)
 # ================================================================
-pipeline = None
+MODEL_FILES = {
+    "rf":  "rf.pkl",
+    "xgb": "xgb.pkl",
+    "ab":  "ab.pkl",
+}
+DEFAULT_MODEL_KEY = "xgb"
 
-def load_pipeline():
-    global pipeline
+pipelines = {}        # {key: pipeline_dict}
+current_model_key = DEFAULT_MODEL_KEY
+
+def load_pipelines():
+    global pipelines, current_model_key
     if not JOBLIB_AVAILABLE:
         print("[WARN] joblib absent — fallback heuristique")
         return
-    if not os.path.exists(PIPELINE_PATH):
-        print(f"[WARN] {PIPELINE_PATH} introuvable — exécuter Train.py d'abord")
-        return
-    try:
-        pipeline = joblib.load(PIPELINE_PATH)
-        print(f"[OK] Pipeline XGBoost chargé — {pipeline['n_features']} features")
-        print(f"     Features : {pipeline['features'][:4]}…")
-    except Exception as e:
-        pipeline = None
-        print(f"[ERR] Chargement pipeline : {e}")
+    for key, filename in MODEL_FILES.items():
+        path = os.path.join(BASE_DIR, filename)
+        if not os.path.exists(path):
+            print(f"[WARN] {path} introuvable — exécuter Train.py d'abord")
+            continue
+        try:
+            pipelines[key] = joblib.load(path)
+            print(f"[OK] Pipeline '{key}' chargé — {pipelines[key]['n_features']} features "
+                  f"({pipelines[key]['model_name']})")
+        except Exception as e:
+            print(f"[ERR] Chargement pipeline '{key}' : {e}")
 
-load_pipeline()
+    if DEFAULT_MODEL_KEY in pipelines:
+        current_model_key = DEFAULT_MODEL_KEY
+    elif pipelines:
+        current_model_key = next(iter(pipelines))
+    else:
+        current_model_key = None
+
+def get_pipeline(key=None):
+    """Retourne le pipeline pour `key`, ou le modèle courant si None."""
+    k = key or current_model_key
+    return pipelines.get(k)
+
+load_pipelines()
 
 CAT_COLS = [
     "Gender", "Smoking", "Alcohol", "Hypertension",
@@ -401,31 +421,33 @@ def encode_cat(value: str, col: str) -> int:
     val = str(value).strip().capitalize() if value not in ("Yes", "No", "Male", "Female") else str(value)
     return m.get(val, 0)
 
-def esrd_predict(data: dict) -> dict:
-    if pipeline is None:
+def esrd_predict(data: dict, model_key: str = None) -> dict:
+    pl = get_pipeline(model_key)
+    if pl is None:
         return _heuristic_predict(data)
 
     row = {}
-    for feat in pipeline['features']:
+    for feat in pl['features']:
         if feat in CAT_COLS:
             row[feat] = encode_cat(data.get(feat, "No"), feat)
         else:
             row[feat] = float(data.get(feat, np.nan))
 
     df = pd.DataFrame([row])
-    X  = pipeline['imputer'].transform(df[pipeline['features']])
-    X  = pipeline['scaler'].transform(X)
+    X  = pl['imputer'].transform(df[pl['features']])
+    X  = pl['scaler'].transform(X)
 
-    prob  = float(pipeline['model'].predict_proba(X)[0, 1])
-    pred  = int(prob >= pipeline['threshold'])
-    label = pipeline['label_names'][pred]
+    prob  = float(pl['model'].predict_proba(X)[0, 1])
+    pred  = int(prob >= pl['threshold'])
+    label = pl['label_names'][pred]
 
     return {
         "probability":     prob,
         "percentage":      round(prob * 100, 1),
         "risk_level":      classify_risk(prob),
         "esrd_risk_label": label,
-        "model_used":      pipeline['model_name'],
+        "model_used":      pl['model_name'],
+        "model_key":       model_key or current_model_key,
     }
 
 def _heuristic_predict(data: dict) -> dict:
@@ -450,6 +472,7 @@ def _heuristic_predict(data: dict) -> dict:
         "risk_level":      classify_risk(prob),
         "esrd_risk_label": ["No ESRD Risk", "ESRD Risk"][pred],
         "model_used":      "heuristic_fallback",
+        "model_key":       "heuristic",
     }
 
 def classify_risk(p: float) -> str:
@@ -789,9 +812,12 @@ def predict():
 
     conn = None
     try:
-        raw     = request.get_json(force=True) or {}
-        d       = norm(raw)
-        ml_raw  = esrd_predict(d)
+        raw       = request.get_json(force=True) or {}
+        d         = norm(raw)
+        model_key = raw.get("model") or raw.get("model_key") or current_model_key
+        if model_key not in pipelines and model_key != "heuristic":
+            model_key = current_model_key
+        ml_raw  = esrd_predict(d, model_key)
         factors = factor_status(d)
         egfr    = compute_egfr(
             d["Baseline Serum Creatinine (mg/dL)"],
@@ -867,7 +893,7 @@ def predict():
             "patient_id":          patient_id,
             "saved":               True,
             "factors":             factors,
-            "pipeline_loaded":     pipeline is not None,
+            "pipeline_loaded":     get_pipeline(model_key) is not None,
             "clinical_flags":      result.get("clinical_flags", []),
             "clinical_message":    result.get("clinical_message", ""),
             "clinical_message_ar": result.get("clinical_message_ar", ""),
@@ -1125,17 +1151,68 @@ def delete_account(account_id):
     conn.close()
     return jsonify({"success": True, "deleted_id": account_id})
 
+MODEL_METRICS = {
+    "rf":  {"accuracy": 87.98, "precision": 83.04, "recall": 87.98, "f1": 85.27, "icon": "🌲", "label": "Random Forest"},
+    "xgb": {"accuracy": 72.69, "precision": 83.12, "recall": 72.69, "f1": 77.69, "icon": "⚡", "label": "XGBoost"},
+    "ab":  {"accuracy": 90.58, "precision": 82.05, "recall": 90.58, "f1": 86.11, "icon": "🔁", "label": "AdaBoost"},
+}
+
+@app.route("/models", methods=["GET"])
+def list_models():
+    """Liste les modèles disponibles avec leurs métriques et l'état courant."""
+    models = []
+    for key, meta in MODEL_METRICS.items():
+        pl = pipelines.get(key)
+        models.append({
+            "key":            key,
+            "label":          meta["label"],
+            "icon":           meta["icon"],
+            "loaded":         pl is not None,
+            "active":         key == current_model_key,
+            "metrics": {
+                "accuracy":  meta["accuracy"],
+                "precision": meta["precision"],
+                "recall":    meta["recall"],
+                "f1":        meta["f1"],
+            },
+        })
+    return jsonify({
+        "success":      True,
+        "models":       models,
+        "current_model": current_model_key,
+        "pipeline_loaded": get_pipeline() is not None,
+    })
+
+@app.route("/set-model", methods=["POST"])
+def set_model():
+    """Change le modèle ML actif (rf / xgb / ab)."""
+    global current_model_key
+    data = request.get_json(force=True) or {}
+    key  = (data.get("model") or data.get("model_key") or "").strip().lower()
+    if key not in MODEL_FILES:
+        return jsonify({"success": False, "error": "Modèle invalide. Choix: rf, xgb, ab"}), 400
+    if key not in pipelines:
+        return jsonify({"success": False, "error": f"Pipeline '{key}' non chargé (fichier {MODEL_FILES[key]} introuvable)"}), 404
+    current_model_key = key
+    return jsonify({
+        "success":       True,
+        "current_model": current_model_key,
+        "model_used":    pipelines[key]["model_name"],
+    })
+
 @app.route("/model-info", methods=["GET"])
 def model_info():
-    p = pipeline or {}
+    pl = get_pipeline()
     return jsonify({
-        "pipeline_loaded": pipeline is not None,
-        "model_type":      p.get("model_name", "heuristic_fallback"),
-        "n_features":      p.get("n_features", 0),
-        "features":        p.get("features", []),
-        "threshold":       p.get("threshold", 0.5),
-        "label_names":     p.get("label_names", ["No ESRD Risk", "ESRD Risk"]),
-        "api_version":     "6.0.0",
+        "pipeline_loaded": pl is not None,
+        "current_model":   current_model_key,
+        "model_type":      (pl or {}).get("model_name", "heuristic_fallback"),
+        "n_features":      (pl or {}).get("n_features", 0),
+        "features":        (pl or {}).get("features", []),
+        "threshold":       (pl or {}).get("threshold", 0.5),
+        "label_names":     (pl or {}).get("label_names", ["No ESRD Risk", "ESRD Risk"]),
+        "available_models": list(pipelines.keys()),
+        "api_version":     "7.0.0",
     })
 
 @app.route("/")
@@ -1148,9 +1225,10 @@ def home():
 # ================================================================
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("  NephroAI Flask API v6.0 — XGBoost ESRD Pipeline")
-    print(f"  Pipeline : {'OUI — ' + str((pipeline or {}).get('n_features', 0)) + ' features' if pipeline else 'NON (fallback heuristique)'}")
-    print(f"  Modèle   : {(pipeline or {}).get('model_name', 'N/A')}")
+    print("  NephroAI Flask API v7.0 — Multi-Model ESRD Pipeline")
+    print(f"  Modèles chargés : {list(pipelines.keys()) if pipelines else 'AUCUN (fallback heuristique)'}")
+    print(f"  Modèle actif    : {current_model_key or 'N/A'} "
+          f"({(get_pipeline() or {}).get('model_name', 'N/A')})")
     print("  Auth     : Bearer Token")
     print("  Admin    : http://127.0.0.1:5000/admin")
     print("  URL      : http://127.0.0.1:5000")
