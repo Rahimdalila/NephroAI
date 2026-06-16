@@ -1,25 +1,32 @@
 # ============================================================
-#  train.py  —  ESRD Prediction  —  XGBoost Pipeline
-#  Exécuter une fois pour générer esrd_pipeline.pkl
+#  train.py  —  ESRD Prediction  —  Multi-Model Pipeline
+#  Entraîne et sauvegarde 3 modèles : rf.pkl / xgb.pkl / ab.pkl
 # ============================================================
+import os
 import pandas as pd
 import numpy as np
 import joblib
 import warnings
 warnings.filterwarnings('ignore')
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.metrics import (
-    accuracy_score, balanced_accuracy_score,
+    accuracy_score, precision_score, recall_score,
     f1_score, roc_auc_score, classification_report,
-    confusion_matrix
+    confusion_matrix, ConfusionMatrixDisplay
 )
 from xgboost import XGBClassifier
 
 # ── 1. Chargement ─────────────────────────────────────────────
 print("=" * 60)
-print("  ESRD PREDICTION — TRAINING PIPELINE (XGBoost)")
+print("  ESRD PREDICTION — MULTI-MODEL TRAINING PIPELINE")
+print("  Models : Random Forest | XGBoost | AdaBoost")
 print("=" * 60)
 
 data = pd.read_csv("esrd_prediction_dataset.csv")
@@ -42,7 +49,7 @@ data['class'] = (data['ESRD Risk'] == 'Yes').astype(int)
 
 # ── 3. Split train / test (colonne existante) ─────────────────
 data = data.reset_index(drop=True)
-META_COLS   = ['Patient ID', 'Dataset Split', 'ESRD Risk', 'class']
+META_COLS    = ['Patient ID', 'Dataset Split', 'ESRD Risk', 'class']
 feature_cols = [c for c in data.columns
                 if c not in META_COLS
                 and pd.api.types.is_numeric_dtype(data[c])]
@@ -71,94 +78,187 @@ n_pos = int(np.sum(y_train == 1))
 spw   = round(n_neg / n_pos)
 print(f"Class balance — No: {n_neg}  Yes: {n_pos}  → scale_pos_weight={spw}\n")
 
-# ── 5. Entraînement XGBoost ───────────────────────────────────
-print("Training XGBoost...")
-model = XGBClassifier(
-    n_estimators      = 200,
-    max_depth         = 5,
-    learning_rate     = 0.1,
-    subsample         = 0.8,
-    colsample_bytree  = 0.8,
-    scale_pos_weight  = spw,      # gère le déséquilibre des classes
-    eval_metric       = 'auc',
-    n_jobs            = -1,
-    random_state      = 42,
-    tree_method       = 'hist'
-)
-model.fit(X_tr, y_train,
-          eval_set=[(X_te, y_test)],
-          verbose=False)
 
-# ── 6. Évaluation ─────────────────────────────────────────────
-probs  = model.predict_proba(X_te)[:, 1]
-y_pred = model.predict(X_te)
-
-print("\n" + "=" * 60)
-print("  RÉSULTATS SUR LE TEST SET")
-print("=" * 60)
-print(f"Accuracy          : {accuracy_score(y_test, y_pred):.4f}")
-print(f"Balanced Accuracy : {balanced_accuracy_score(y_test, y_pred):.4f}")
-print(f"F1 (weighted)     : {f1_score(y_test, y_pred, average='weighted'):.4f}")
-print(f"F1 (macro)        : {f1_score(y_test, y_pred, average='macro'):.4f}")
-print(f"AUC-ROC           : {roc_auc_score(y_test, probs):.4f}")
-print()
-print(classification_report(y_test, y_pred,
-                              target_names=['No ESRD Risk', 'ESRD Risk'],
-                              zero_division=0))
-
-cm = confusion_matrix(y_test, y_pred)
-print(f"Confusion Matrix:\n{cm}\n")
-
-# ── 7. Sauvegarde du pipeline complet ─────────────────────────
-pipeline = {
-    'model':        model,
-    'imputer':      imputer,
-    'scaler':       scaler,
-    'features':     feature_cols,
-    'cat_cols':     CAT_COLS,
-    'threshold':    0.5,
-    'label_names':  ['No ESRD Risk', 'ESRD Risk'],
-    'model_name':   'XGBoost',
-    'n_features':   len(feature_cols),
+# ── 5. Définition des modèles ─────────────────────────────────
+models = {
+    'rf': {
+        'name': 'Random Forest',
+        'filename': 'rf.pkl',
+        'clf': RandomForestClassifier(
+            n_estimators  = 200,
+            max_depth     = 10,
+            class_weight  = 'balanced',   # gère le déséquilibre
+            n_jobs        = -1,
+            random_state  = 42,
+        ),
+    },
+    'xgb': {
+        'name': 'XGBoost',
+        'filename': 'xgb.pkl',
+        'clf': XGBClassifier(
+            n_estimators      = 200,
+            max_depth         = 5,
+            learning_rate     = 0.1,
+            subsample         = 0.8,
+            colsample_bytree  = 0.8,
+            scale_pos_weight  = spw,
+            eval_metric       = 'auc',
+            n_jobs            = -1,
+            random_state      = 42,
+            tree_method       = 'hist',
+        ),
+    },
+    'ab': {
+        'name': 'AdaBoost',
+        'filename': 'ab.pkl',
+        'clf': AdaBoostClassifier(
+            n_estimators  = 200,
+            learning_rate = 0.5,
+            random_state  = 42,
+        ),
+    },
 }
-joblib.dump(pipeline, 'esrd_pipeline.pkl')
+
+
+# ── 6. Entraînement, évaluation et sauvegarde ─────────────────
+def evaluate_and_save(key, cfg, X_tr, y_train, X_te, y_test):
+    """Entraîne un modèle, affiche ses métriques, sauvegarde le pipeline."""
+    print("=" * 60)
+    print(f"  [{cfg['name']}]  Training…")
+    print("=" * 60)
+
+    clf = cfg['clf']
+
+    # XGBoost peut utiliser eval_set
+    if key == 'xgb':
+        clf.fit(X_tr, y_train,
+                eval_set=[(X_te, y_test)],
+                verbose=False)
+    else:
+        clf.fit(X_tr, y_train)
+
+    probs  = clf.predict_proba(X_te)[:, 1]
+    y_pred = clf.predict(X_te)
+
+    acc  = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+    rec  = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+    f1w  = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+    auc  = roc_auc_score(y_test, probs)
+
+    print(f"  Accuracy  : {acc:.4f}")
+    print(f"  Precision : {prec:.4f}  (weighted)")
+    print(f"  Recall    : {rec:.4f}  (weighted)")
+    print(f"  F1-score  : {f1w:.4f}  (weighted)")
+    print(f"  AUC-ROC   : {auc:.4f}")
+    print()
+    print(classification_report(y_test, y_pred,
+                                 target_names=['No ESRD Risk', 'ESRD Risk'],
+                                 zero_division=0))
+    cm = confusion_matrix(y_test, y_pred)
+    print(f"Confusion Matrix:\n{cm}\n")
+
+    # Sauvegarde du pipeline complet
+    pipeline = {
+        'model':       clf,
+        'imputer':     imputer,
+        'scaler':      scaler,
+        'features':    feature_cols,
+        'cat_cols':    CAT_COLS,
+        'threshold':   0.5,
+        'label_names': ['No ESRD Risk', 'ESRD Risk'],
+        'model_name':  cfg['name'],
+        'n_features':  len(feature_cols),
+        'metrics': {
+            'accuracy':  acc,
+            'precision': prec,
+            'recall':    rec,
+            'f1':        f1w,
+            'auc':       auc,
+        },
+        'cm': cm,       # store for combined figure
+        'y_pred': y_pred,
+    }
+    joblib.dump(pipeline, cfg['filename'])
+    print(f"  ✅ Pipeline sauvegardé : {cfg['filename']}\n")
+    return pipeline
+
+
+saved = {}
+for key, cfg in models.items():
+    saved[key] = evaluate_and_save(key, cfg, X_tr, y_train, X_te, y_test)
+
+
+# ── 7. Récapitulatif comparatif ───────────────────────────────
 print("=" * 60)
-print("  ✅ Pipeline sauvegardé : esrd_pipeline.pkl")
+print("  RÉCAPITULATIF COMPARATIF")
+print("=" * 60)
+header = f"{'Model':<18} {'Accuracy':>10} {'Precision':>10} {'Recall':>10} {'F1':>10} {'AUC':>10}"
+print(header)
+print("-" * 60)
+for key, cfg in models.items():
+    m = saved[key]['metrics']
+    print(
+        f"{cfg['name']:<18}"
+        f"{m['accuracy']:>10.4f}"
+        f"{m['precision']:>10.4f}"
+        f"{m['recall']:>10.4f}"
+        f"{m['f1']:>10.4f}"
+        f"{m['auc']:>10.4f}"
+    )
+print("=" * 60)
+print("  Fichiers générés : rf.pkl | xgb.pkl | ab.pkl")
 print("=" * 60)
 
-# ── 8. Fonction de prédiction (pour l'interface) ──────────────
-def predict_esrd(patient_data: dict) -> dict:
+
+# ── 8. Sauvegarde de la figure Confusion Matrix ───────────────
+os.makedirs("figures", exist_ok=True)
+
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+fig.suptitle("Confusion Matrix - Production Pipeline", fontsize=16, fontweight='bold', y=1.02)
+
+for ax, (key, cfg) in zip(axes, models.items()):
+    cm = saved[key]['cm']
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix=cm,
+        display_labels=['No ESRD Risk', 'ESRD Risk']
+    )
+    disp.plot(ax=ax, colorbar=False, cmap='Blues')
+    ax.set_title(cfg['name'], fontsize=13, fontweight='bold', pad=10)
+    ax.set_xlabel('Predicted Label', fontsize=10)
+    ax.set_ylabel('True Label', fontsize=10)
+
+plt.tight_layout()
+output_path = "figures/matrices_confusion_production.png"
+plt.savefig(output_path, dpi=150, bbox_inches='tight')
+plt.close()
+print(f"\n  ✅ Confusion matrix figure saved : {output_path}\n")
+
+
+# ── 9. Fonction de prédiction réutilisable ────────────────────
+def predict_esrd(patient_data: dict, model_key: str = 'xgb') -> dict:
     """
     Prédire le risque ESRD pour un nouveau patient.
 
     Parameters
     ----------
-    patient_data : dict
-        Dictionnaire avec les valeurs des features.
-        Exemple:
-        {
-            'Age': 65,
-            'Gender': 'Male',
-            'Hypertension': 'Yes',
-            'Baseline Serum Creatinine (mg/dL)': 1.8,
-            ...
-        }
+    patient_data : dict   — valeurs brutes des features
+    model_key    : str    — 'rf' | 'xgb' | 'ab'
 
     Returns
     -------
-    dict avec 'prediction', 'probability', 'risk_label'
+    dict avec 'prediction', 'probability', 'risk_label', 'risk_pct'
     """
-    pipeline = joblib.load('esrd_pipeline.pkl')
+    filename_map = {'rf': 'rf.pkl', 'xgb': 'xgb.pkl', 'ab': 'ab.pkl'}
+    pipeline = joblib.load(filename_map[model_key])
 
     df = pd.DataFrame([patient_data])
 
-    # Encoder les colonnes catégorielles
     le_pred = LabelEncoder()
     for col in pipeline['cat_cols']:
         if col in df.columns:
             df[col] = le_pred.fit_transform(df[col].astype(str))
 
-    # Aligner les features
     for col in pipeline['features']:
         if col not in df.columns:
             df[col] = np.nan
@@ -172,10 +272,11 @@ def predict_esrd(patient_data: dict) -> dict:
     label = pipeline['label_names'][pred]
 
     return {
+        'model':       pipeline['model_name'],
         'prediction':  pred,
         'probability': round(float(prob), 4),
         'risk_label':  label,
-        'risk_pct':    f"{prob * 100:.1f}%"
+        'risk_pct':    f"{prob * 100:.1f}%",
     }
 
 
@@ -211,7 +312,12 @@ if __name__ == '__main__':
         'Insulin': 'No',
         'Dipeptidyl Peptidase-4 Inhibitor': 'No',
     }
-    result = predict_esrd(example)
-    print(f"\n📋 Exemple de prédiction:")
-    print(f"   Risque ESRD  : {result['risk_label']}")
-    print(f"   Probabilité  : {result['risk_pct']}")
+
+    print("\n📋 Exemple de prédiction (3 modèles) :")
+    for key in ['rf', 'xgb', 'ab']:
+        r = predict_esrd(example, model_key=key)
+        print(f"  [{r['model']:<16}]  {r['risk_label']}  ({r['risk_pct']})")
+# ============================================================
+#  train.py  —  ESRD Prediction  —  Multi-Model Pipeline
+#  Entraîne et sauvegarde 3 modèles : rf.pkl / xgb.pkl / ab.pkl
+# ============================================================
